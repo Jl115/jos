@@ -1,12 +1,14 @@
+[workspace]
+members = ["crates/kernel"]
+
 [package]
-name = "jOS"
+name = "jos"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-volatile = "0.4.6" 
-bitflags = "2.4.2"
-spin = "0.9.8"
+# Das Hauptprojekt zieht sich den Kernel als lokale Abhängigkeit
+kernel = { path = "crates/kernel" }
 
 [profile.dev]
 panic = "abort"
