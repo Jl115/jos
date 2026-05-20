@@ -1,0 +1,28 @@
+BasedOnStyle: LLVM
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ColumnLimit: 100
+
+# Braces and Control Flow
+BreakBeforeBraces: Attach
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+AllowShortBlocksOnASingleLine: false
+AllowShortFunctionsOnASingleLine: Empty
+SpaceBeforeParens: ControlStatements
+
+# Pointers and Types (Standard C Style)
+PointerAlignment: Right
+
+# Alignment (Crucial for reading hardware registers and structs)
+AlignAfterOpenBracket: Align
+AlignConsecutiveAssignments: true
+AlignConsecutiveMacros: true
+AlignConsecutiveDeclarations: true
+
+# Switch Statements
+IndentCaseLabels: false
+
+# Code Cleanup
+SortIncludes: true
