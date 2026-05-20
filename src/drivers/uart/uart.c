@@ -1,5 +1,5 @@
 #include "./uart.h"
-#include "./registry.h"
+#include "./uart_registry.h"
 
 void uart_putc(char c) {
     while (UART0->FLAG_REGISTER & (1 << 5)) {
