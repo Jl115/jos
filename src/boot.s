@@ -1,35 +1,13 @@
-; boot.s
-MBALIGN  equ  1 << 0
-MEMINFO  equ  1 << 1
-FLAGS    equ  MBALIGN | MEMINFO
-MAGIC    equ  0x1BADB002
-CHECKSUM equ -(MAGIC + FLAGS)
-
-section .multiboot
-align 4
-    dd MAGIC
-    dd FLAGS
-    dd CHECKSUM
-
-section .bss
-align 16
-stack_bottom:
-    resb 16384 ; 16 KB Stack
-stack_top:
-
-section .text
-global _start
-extern kernel_main
+.extern kernel_main
+.global _start
+.section .text.boot
 
 _start:
-    ; Dem C-Code einen Stack geben
-    mov esp, stack_top
+    // 16mb ram start
+    ldr x30, =0x41000000
+    mov sp, x30
+    bl kernel_main
 
-    ; Ab in den C-Code!
-    call kernel_main
-
-    ; Falls der Kernel jemals zurückkehrt (was er nicht sollte), 
-    ; schicken wir die CPU in eine Endlosschleife.
-    cli
-.hang:  hlt
-    jmp .hang
+hang:
+    wfe
+    b hang
