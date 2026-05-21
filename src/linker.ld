@@ -2,31 +2,31 @@ ENTRY(_start)
 
 SECTIONS
 {
-    . = 1M;
-
-    .multiboot :
-    {
-        KEEP(*(.multiboot))
-    }
+    /* QEMU virt machine RAM starts at 0x40000000 */
+    . = 0x40000000;
 
     .text : ALIGN(4K)
     {
-        *(.text)
+        /* The boot assembly MUST be the very first thing in the binary */
+        *(.text.boot)
+        *(.text*)
     }
 
     .rodata : ALIGN(4K)
     {
-        *(.rodata)
+        *(.rodata*)
     }
 
     .data : ALIGN(4K)
     {
-        *(.data)
+        *(.data*)
     }
 
     .bss : ALIGN(4K)
     {
+        __bss_start = .;
         *(COMMON)
-        *(.bss)
+        *(.bss*)
+        __bss_end = .;
     }
 }
