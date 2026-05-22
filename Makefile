@@ -1,43 +1,59 @@
-TARGET  = aarch64-freestanding-none
-CC      = zig cc -target $(TARGET)
-# -MD and -MP auto-generate header dependency files during compilation
-CFLAGS  = -ffreestanding -fno-builtin -nostdlib -O2 -Isrc -mgeneral-regs-only -MD -MP
-LDFLAGS = -nostdlib -Wl,-T,src/linker.ld -Wl,--build-id=none -Wl,-z,max-page-size=4096
+TARGET    = aarch64-freestanding-none
+CC        = zig cc -target $(TARGET)
+OBJCOPY   = zig objcopy
 
-C_SOURCES = $(shell find src -type f -name "*.c")
-S_SOURCES = $(shell find src -type f -name "*.S")
+# Flags for compilation ONLY (warnings fixed)
+CFLAGS = -Wall -ffreestanding -Iinclude -mgeneral-regs-only -fno-sanitize=undefined
+ASMOPS    = $(CFLAGS)
 
-OBJ  = $(C_SOURCES:.c=.o) $(S_SOURCES:.S=.o)
-DEPS = $(OBJ:.o=.d)
+# Flags for linking ONLY (linker error fixed)
+LDFLAGS   = -nostdlib -nostartfiles -T src/linker.ld -Wl,--build-id=none
+
+BUILD_DIR = build
+SRC_DIR   = src
+
+C_FILES   = $(shell find $(SRC_DIR) -name '*.c')
+ASM_FILES = $(shell find $(SRC_DIR) -name '*.S')
+OBJ_FILES = $(C_FILES:$(SRC_DIR)/%.c=$(BUILD_DIR)/%_c.o)
+OBJ_FILES += $(ASM_FILES:$(SRC_DIR)/%.S=$(BUILD_DIR)/%_s.o)
+DEP_FILES = $(OBJ_FILES:%.o=%.d)
+
+.PHONY: all run clean img
 
 all: run
 
-# Linker script added as a direct dependency
-jos.elf: $(OBJ) src/linker.ld
-	@echo "Linking jos.elf..."
-	@$(CC) $(LDFLAGS) $(OBJ) -o $@
-
-# C-compile
-%.o: %.c
-	@echo "CC $<"
-	@$(CC) $(CFLAGS) -c $< -o $@
-
-# Assembly-compile (CFLAGS included to support C macros in assembly)
-%.o: %.S
-	@echo "AS $<"
-	@$(CC) $(CFLAGS) -c $< -o $@
-
-# QEMU start
-run: jos.elf
+# Boot in QEMU using the ELF file
+run: $(BUILD_DIR)/jos.elf
 	@echo "Booting in QEMU..."
-	@qemu-system-aarch64 -M virt -cpu cortex-a53 -m 128M -nographic -kernel jos.elf
+	qemu-system-aarch64 -M virt -cpu cortex-a53 -m 128M -nographic -kernel $(BUILD_DIR)/jos.elf
 
-# Rm trash
+img: jos.img
+
 clean:
 	@echo "Cleaning up..."
-	@rm -f $(OBJ) $(DEPS) jos.elf
+	rm -rf $(BUILD_DIR) jos.img
 
-# Include the auto-generated dependency files
--include $(DEPS)
+# Compile C files
+$(BUILD_DIR)/%_c.o: $(SRC_DIR)/%.c
+	@mkdir -p $(@D)
+	@echo "CC $<"
+	$(CC) $(CFLAGS) -MMD -c $< -o $@
 
-.PHONY: all run clean
+# Compile ASM files
+$(BUILD_DIR)/%_s.o: $(SRC_DIR)/%.S
+	@mkdir -p $(@D)
+	@echo "AS $<"
+	$(CC) $(ASMOPS) -MMD -c $< -o $@
+
+# Link using LDFLAGS
+$(BUILD_DIR)/jos.elf: $(SRC_DIR)/linker.ld $(OBJ_FILES)
+	@mkdir -p $(@D)
+	@echo "Linking $@"
+	$(CC) $(LDFLAGS) $(OBJ_FILES) -o $@
+
+# Extract binary
+jos.img: $(BUILD_DIR)/jos.elf
+	@echo "Extracting binary $@"
+	$(OBJCOPY) -O binary $< $@
+
+-include $(DEP_FILES)

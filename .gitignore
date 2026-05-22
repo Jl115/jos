@@ -5,6 +5,9 @@
 # Prerequisites
 *.d
 
+build/*
+!build/.gitkeep
+
 # Object files
 *.o
 *.ko
