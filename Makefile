@@ -23,9 +23,9 @@ DEP_FILES = $(OBJ_FILES:%.o=%.d)
 all: run
 
 # Boot in QEMU using the ELF file
-run: $(BUILD_DIR)/jos.elf
+run: $(BUILD_DIR)/jos_kernel8.elf
 	@echo "Booting in QEMU..."
-	qemu-system-aarch64 -M virt -cpu cortex-a53 -m 128M -nographic -kernel $(BUILD_DIR)/jos.elf
+	qemu-system-aarch64 -M virt -cpu cortex-a53 -m 128M -nographic -kernel $(BUILD_DIR)/jos_kernel8.elf
 
 img: jos.img
 
@@ -46,13 +46,13 @@ $(BUILD_DIR)/%_s.o: $(SRC_DIR)/%.S
 	$(CC) $(ASMOPS) -MMD -c $< -o $@
 
 # Link using LDFLAGS
-$(BUILD_DIR)/jos.elf: $(SRC_DIR)/linker.ld $(OBJ_FILES)
+$(BUILD_DIR)/jos_kernel8.elf: $(SRC_DIR)/linker.ld $(OBJ_FILES)
 	@mkdir -p $(@D)
 	@echo "Linking $@"
 	$(CC) $(LDFLAGS) $(OBJ_FILES) -o $@
 
 # Extract binary
-jos.img: $(BUILD_DIR)/jos.elf
+jos.img: $(BUILD_DIR)/jos_kernel8.elf
 	@echo "Extracting binary $@"
 	$(OBJCOPY) -O binary $< $@
 

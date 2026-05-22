@@ -1,8 +1,6 @@
 #include "drivers/uart/uart.h"
 
 void kernel_main(void) {
-    uart_printf("\x1b[32mJOS Modular Architecture: ONLINE\n\x1b[0m");
-
     int ram_start     = 0x40000000;
     int test_negative = -42;
 
