@@ -3,6 +3,7 @@
 ## What You're Building
 
 Two things:
+
 1. A **Flattened Device Tree (FDT) parser** to discover how much RAM QEMU gave you.
 2. A **Page Frame Allocator (PFA)** to manage that RAM as a pool of 4KB physical pages.
 
@@ -15,6 +16,7 @@ Two things:
 When QEMU boots your kernel, it passes a pointer to the FDT in **register x0**.
 
 #### FDT Structure (in memory)
+
 ```
 +------------------+
 | Header (40 bytes) |
@@ -53,17 +55,21 @@ When QEMU boots your kernel, it passes a pointer to the FDT in **register x0**.
 ```
 
 #### What You Need to Parse
+
 At minimum, find the `/memory` node and extract its `reg` property:
+
 ```
 /memory {
     device_type = "memory";
     reg = <0x00000000 0x40000000>;   // base=0x0, size=0x40000000 (1GB)
 };
 ```
+
 - The `reg` property is a list of (base, size) pairs. Each is a 64-bit value.
 - Endianness: The FDT is **big-endian** in the blob. Your parser must byte-swap on little-endian QEMU.
 
 #### Traversal Pseudocode
+
 ```
 function parse_fdt(fdt_base):
     header = fdt_base as FDTHeader*
@@ -98,7 +104,9 @@ function parse_fdt(fdt_base):
 ```
 
 ### 2. Memory Reservations
+
 The FDT header has `off_mem_rsvmap`. Read it!
+
 - Reserved regions include the FDT blob itself, video framebuffers, etc.
 - Your PFA must **exclude** these regions from allocation.
 - Format: A list of `{ u64 base, u64 size }` ending with `{ 0, 0 }`.
@@ -106,10 +114,12 @@ The FDT header has `off_mem_rsvmap`. Read it!
 ### 3. Page Frame Allocation (PFA)
 
 #### The Goal
+
 Divide available RAM into **4 KiB (4096 byte) chunks** called **page frames**.
 Track which frames are free and which are allocated.
 
 #### Simplest Approach: Bitmap Allocator
+
 ```
 // One bit per page frame.
 // 0 = free, 1 = allocated.
@@ -156,12 +166,14 @@ void pfa_free(uint64_t phys_addr):
 ```
 
 #### Buddy Allocator (More Advanced, Optional)
+
 - The bitmap approach is simple but slow for large allocations.
 - For a more advanced project, research the **Buddy System** (used by Linux).
 - It maintains power-of-2 free lists (1-page, 2-page, 4-page, etc. blocks).
 - Makes it efficient to allocate and free contiguous blocks of pages.
 
 ### 4. Linker Script Awareness
+
 - Your kernel occupies RAM from its load address (e.g., `0x40000000`) through its end (`.bss` end).
 - The PFA bitmap itself must live inside RAM but outside the kernel image.
 - **Important:** The PFA must mark your kernel's own memory as "allocated" so you don't accidentally reuse it.
@@ -171,30 +183,36 @@ void pfa_free(uint64_t phys_addr):
 ## Step-by-Step Implementation Path
 
 ### Step 1: Verify x0 at boot
+
 - In your earliest assembly, move `x0` to a global variable or pass it to C before doing anything else.
 - `x0` = pointer to the FDT blob in RAM.
 - Print the first 4 bytes. They should be `0xED 0xFE 0x0D 0xD0` (big-endian `0xd00dfeed`).
 
 ### Step 2: Write a minimal FDT walker
+
 - Parse the header, validate magic.
 - Walk the structure block, tracking only nodes and properties.
 - **Don't use recursion.** Use iteration to avoid stack overflow in kernel code.
 
 ### Step 3: Extract `/memory` info
+
 - Find the node named `memory`.
 - Extract its `reg` property.
 - Print: `"RAM: base=0xXXXXXXXX size=0xXXXXXXXX"` via UART.
 
 ### Step 4: Parse reserved memory regions
+
 - Read the memory reservation block.
 - Mark the FDT blob and any reserved regions as in-use.
 
 ### Step 5: Implement the bitmap PFA
+
 - Define a static array for the bitmap (or place it at the end of the kernel image).
 - Mark the kernel region + bitmap region + FDT region as allocated.
 - Implement `pfa_alloc()` and `pfa_free()`.
 
 ### Step 6: Test
+
 ```
 // Pseudocode test
 pfa_init(ram_base, ram_size, kernel_start, kernel_end);
@@ -223,12 +241,12 @@ printf("After free+alloc, page at 0x%llx\n", c);
 
 ## Recommended Resources
 
-| Resource | URL | Why Read It |
-|----------|-----|-------------|
-| **Devicetree Specification** | https://devicetree-specification.readthedocs.io/en/latest/ | Official spec for the FDT blob format, header fields, memory reservation block, and structure block traversal. |
-| **Linux Kernel — `libfdt`** | https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/scripts/dtc/libfdt | Canonical C library for parsing FDT. Essential for understanding `fdt_next_node()`, `fdt_getprop()`, and address resolution. |
-| **Linux Kernel — `Documentation/devicetree/usage-model.rst`** | https://www.kernel.org/doc/Documentation/devicetree/usage-model.rst | Explains how Linux unflattens the device tree and binds drivers. Useful for designing your own FDT walker. |
-| **OSDev Wiki — Page Frame Allocation** | https://wiki.osdev.org/Page_Frame_Allocation | Core OSDev article on physical memory management. Covers bitmap allocators, buddy allocators, and integration with bootloader-provided memory maps. |
-| **Linux Kernel — `mm/page_alloc.c`** | https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/mm/page_alloc.c | Canonical implementation of the buddy page allocator. Reference for zone-aware page frame allocation. |
-| **Writing a Simple FDT Parser in C** | Search: "bare metal device tree parser tutorial" | Blog posts showing step-by-step FDT walking. Good for sanity-checking your understanding. |
-| **QEMU `virt` Machine Memory Map** | Search: "QEMU virt machine memory layout dtb" | Knows your exact device and RAM layout on QEMU. |
+| Resource                                                      | URL                                                                                        | Why Read It                                                                                                                                         |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Devicetree Specification**                                  | https://devicetree-specification.readthedocs.io/en/latest/                                 | Official spec for the FDT blob format, header fields, memory reservation block, and structure block traversal.                                      |
+| **Linux Kernel — `libfdt`**                                   | https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/scripts/dtc/libfdt | Canonical C library for parsing FDT. Essential for understanding `fdt_next_node()`, `fdt_getprop()`, and address resolution.                        |
+| **Linux Kernel — `Documentation/devicetree/usage-model.rst`** | https://www.kernel.org/doc/Documentation/devicetree/usage-model.rst                        | Explains how Linux unflattens the device tree and binds drivers. Useful for designing your own FDT walker.                                          |
+| **OSDev Wiki — Page Frame Allocation**                        | https://wiki.osdev.org/Page_Frame_Allocation                                               | Core OSDev article on physical memory management. Covers bitmap allocators, buddy allocators, and integration with bootloader-provided memory maps. |
+| **Linux Kernel — `mm/page_alloc.c`**                          | https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/mm/page_alloc.c    | Canonical implementation of the buddy page allocator. Reference for zone-aware page frame allocation.                                               |
+| **Writing a Simple FDT Parser in C**                          | Search: "bare metal device tree parser tutorial"                                           | Blog posts showing step-by-step FDT walking. Good for sanity-checking your understanding.                                                           |
+| **QEMU `virt` Machine Memory Map**                            | Search: "QEMU virt machine memory layout dtb"                                              | Knows your exact device and RAM layout on QEMU.                                                                                                     |

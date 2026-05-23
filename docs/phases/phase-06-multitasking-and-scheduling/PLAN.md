@@ -3,6 +3,7 @@
 ## What You're Building
 
 **Real multitasking.** More than one process running concurrently. You will:
+
 1. Define a **Process Control Block (PCB)** to hold a process's state.
 2. Write an **Assembly context switch** routine to save one process's registers and restore another's.
 3. Use the **timer from Phase 2** to trigger a scheduler that decides which process runs next.
@@ -39,6 +40,7 @@ typedef struct pcb {
     struct pcb *next;      // linked list for scheduler queues
 } pcb_t;
 ```
+
 - **x0-x30:** General-purpose registers.
 - **sp:** The process's stack pointer. At this stage, your kernel is in EL1 so this is SP_EL1.
 - **pc:** `ELR_EL1` — the exception link register, which is where the process resumes after `eret`.
@@ -49,11 +51,14 @@ typedef struct pcb {
 The scheduler decides which process runs next. The context switch is the **mechanical act** of swapping register banks.
 
 #### When does a context switch happen?
+
 - **Voluntary:** A process calls `yield()` or blocks on I/O.
 - **Involuntary (Preemptive):** The timer fires every N milliseconds, the timer IRQ handler calls the scheduler.
 
 #### What the hardware does on exception entry (IRQ)
+
 When a timer IRQ fires:
+
 ```
 SPSR_EL1  = PSTATE (current proc's processor state)
 ELR_EL1   = PC     (current proc's instruction pointer)
@@ -65,6 +70,7 @@ PC jumps to VBAR_EL1 + IRQ_offset
 So the hardware **already saved pc and pstate.** You only need to save x0-x30 and sp.
 
 #### Assembly context switch pseudocode
+
 ```
 save_current_context:
     // Assume x0 points to the CURRENT process's PCB
@@ -76,7 +82,7 @@ save_current_context:
     ldr x0, =current_pcb
     ldr x0, [x0]
 
-    // Save x0-x30. Note: x0-x18 are ON THE STACK. 
+    // Save x0-x30. Note: x0-x18 are ON THE STACK.
     // We need to pull them off the stack and write them into the PCB.
     add x1, x0, PCB_OFFSET_X0
     ldp x2, x3, [sp, #16*0]    // load x0, x1 from stack
@@ -161,6 +167,7 @@ void schedule(void):
 ### 4. The Process Stack
 
 Each process needs its own stack. At boot:
+
 ```
 pcb_t *create_process(void *entry_point):
     p = kmalloc(sizeof(pcb_t))
@@ -188,18 +195,22 @@ pcb_t *create_process(void *entry_point):
 ## Step-by-Step Implementation Path
 
 ### Step 1: Define the PCB struct
+
 - Decide exactly what goes in the PCB.
 - Allocate a fixed-size array of PCBs (e.g., 64 processes max).
 
 ### Step 2: Implement process creation
+
 - `create_process(entry_point)` allocates a PCB and a stack page.
 - Sets initial register values to zero, `pc = entry_point`, `sp = stack_top`.
 
 ### Step 3: Implement a simple scheduler
+
 - Maintain a linked list of READY processes.
 - `schedule()` simply rotates to the next one.
 
 ### Step 4: Write the context switch in assembly
+
 - In `entry.S`, extend your IRQ stub:
   1. Save x0-x18 (current registers) to a temporary area or directly into the PCB.
   2. Call `schedule()` in C.
@@ -208,6 +219,7 @@ pcb_t *create_process(void *entry_point):
   5. `eret`.
 
 ### Step 5: Test with two processes
+
 - Create two idle-ish processes that just increment a counter and print their PID.
 - You should see both processes taking turns, triggered by the timer every 1ms.
 
@@ -225,13 +237,13 @@ pcb_t *create_process(void *entry_point):
 
 ## Recommended Resources
 
-| Resource | URL | Why Read It |
-|----------|-----|-------------|
-| **ARM Architecture Reference Manual (DDI 0487)** — Processor State, PSTATE, SPSR, ELR | https://developer.arm.com/documentation/ddi0487/latest/ | Canonical reference for ARM64 processor state, general-purpose registers, system registers (PSTATE, SPSR, ELR), and the exact mechanics of preserving/restoring execution context. |
-| **OSDev Wiki — ARM64 Bare Bones & Scheduling** | https://wiki.osdev.org/ARM_Architecture https://wiki.osdev.org/Scheduling | Community-curated bare-metal OS development guides. Covers basic register conventions, interrupt handling, and scheduler concepts on ARM64. |
-| **Linux Kernel — `arch/arm64/kernel/process.c` & `entry.S`** | https://github.com/torvalds/linux/tree/master/arch/arm64/kernel | Production-grade implementation of ARM64 `cpu_switch_mm()` and `kernel_thread()` / `ret_to_user`. Shows how the kernel saves/restores GPRs, LR, SP, and the TPIDR on context switch. |
-| **ARM Learn the Architecture — Register Banking and Context Switching** | https://developer.arm.com/documentation/102412/0100 | Official ARM educational content explaining register banking, stack selection per exception level, and the role of system registers during mode transitions. |
-| **LWN.net — "The Linux Scheduler" & context-switch internals** | https://lwn.net/Kernel/Index/#Scheduling | High-quality articles explaining how the generic scheduling algorithm connects to the architecture-specific assembly switch code. |
-| **Raspberry Pi OS Tutorial — Lesson 07 (Processes)** | https://github.com/s-matyukevich/raspberry-pi-os | Practical bare-metal implementation of process creation and context switching on real ARM hardware. |
-| **MIT 6.828 (xv6) — Context Switch Lecture** | Search: "xv6 context switch lecture notes" | Not ARM64, but the concepts of PCB, scheduler, and context switch are universal. Very clear lecture notes. |
-| **ARM Software Interfaces — Procedure Call Standard for AArch64 (AAPCS64)** | https://github.com/ARM-software/abi-aa/blob/main/aapcs64/aapcs64.rst | Defines which registers are caller-saved vs callee-saved. Essential for deciding what your context switch must preserve. |
+| Resource                                                                              | URL                                                                       | Why Read It                                                                                                                                                                          |
+| ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **ARM Architecture Reference Manual (DDI 0487)** — Processor State, PSTATE, SPSR, ELR | https://developer.arm.com/documentation/ddi0487/latest/                   | Canonical reference for ARM64 processor state, general-purpose registers, system registers (PSTATE, SPSR, ELR), and the exact mechanics of preserving/restoring execution context.   |
+| **OSDev Wiki — ARM64 Bare Bones & Scheduling**                                        | https://wiki.osdev.org/ARM_Architecture https://wiki.osdev.org/Scheduling | Community-curated bare-metal OS development guides. Covers basic register conventions, interrupt handling, and scheduler concepts on ARM64.                                          |
+| **Linux Kernel — `arch/arm64/kernel/process.c` & `entry.S`**                          | https://github.com/torvalds/linux/tree/master/arch/arm64/kernel           | Production-grade implementation of ARM64 `cpu_switch_mm()` and `kernel_thread()` / `ret_to_user`. Shows how the kernel saves/restores GPRs, LR, SP, and the TPIDR on context switch. |
+| **ARM Learn the Architecture — Register Banking and Context Switching**               | https://developer.arm.com/documentation/102412/0100                       | Official ARM educational content explaining register banking, stack selection per exception level, and the role of system registers during mode transitions.                         |
+| **LWN.net — "The Linux Scheduler" & context-switch internals**                        | https://lwn.net/Kernel/Index/#Scheduling                                  | High-quality articles explaining how the generic scheduling algorithm connects to the architecture-specific assembly switch code.                                                    |
+| **Raspberry Pi OS Tutorial — Lesson 07 (Processes)**                                  | https://github.com/s-matyukevich/raspberry-pi-os                          | Practical bare-metal implementation of process creation and context switching on real ARM hardware.                                                                                  |
+| **MIT 6.828 (xv6) — Context Switch Lecture**                                          | Search: "xv6 context switch lecture notes"                                | Not ARM64, but the concepts of PCB, scheduler, and context switch are universal. Very clear lecture notes.                                                                           |
+| **ARM Software Interfaces — Procedure Call Standard for AArch64 (AAPCS64)**           | https://github.com/ARM-software/abi-aa/blob/main/aapcs64/aapcs64.rst      | Defines which registers are caller-saved vs callee-saved. Essential for deciding what your context switch must preserve.                                                             |

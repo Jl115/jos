@@ -10,12 +10,12 @@ The **Memory Management Unit (MMU)** configuration for AArch64. You will constru
 
 ### 1. Why Virtual Memory?
 
-| Problem | How Virtual Memory Fixes It |
-|---------|-----------------------------|
-| Processes use same physical addresses and crash into each other | Each process gets its own virtual address space |
-| Fragmented physical memory | The OS can scatter a process's pages physically while appearing contiguous virtually |
-| A process can write anywhere in RAM | The MMU enforces permissions (read/write/execute/user/kernel) on every page |
-| No way to isolate user-space from kernel | Kernel pages can be marked as kernel-only |
+| Problem                                                         | How Virtual Memory Fixes It                                                          |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Processes use same physical addresses and crash into each other | Each process gets its own virtual address space                                      |
+| Fragmented physical memory                                      | The OS can scatter a process's pages physically while appearing contiguous virtually |
+| A process can write anywhere in RAM                             | The MMU enforces permissions (read/write/execute/user/kernel) on every page          |
+| No way to isolate user-space from kernel                        | Kernel pages can be marked as kernel-only                                            |
 
 ### 2. AArch64 Address Translation Overview
 
@@ -24,6 +24,7 @@ The **Memory Management Unit (MMU)** configuration for AArch64. You will constru
 - Translation tables are **hierarchical**. For 4 KiB pages with 48-bit VAs, there are **4 levels** (Level 0 → 1 → 2 → 3).
 
 #### Translation Table Levels (48-bit, 4 KiB granule)
+
 ```
 VA[47:39]  →  Translation Table Level 0 (L0)  → points to L1 table address
 VA[38:30]  →  Translation Table Level 1 (L1)  → points to L2 table address
@@ -36,13 +37,14 @@ Each table is **4096 bytes** with **512 entries** (each entry = 8 bytes).
 
 #### Descriptor Types (at each level)
 
-| Bits | Meaning |
-|------|---------|
-| `[1:0]` | `00` = Invalid, `01` = Block (huge page), `11` = Table (pointer to next level) |
-| At L0-L2 | Can be Block or Table. If Block, maps a **huge region**. |
-| At L3     | Must be a **Page** descriptor (final 4 KiB mapping). |
+| Bits     | Meaning                                                                        |
+| -------- | ------------------------------------------------------------------------------ |
+| `[1:0]`  | `00` = Invalid, `01` = Block (huge page), `11` = Table (pointer to next level) |
+| At L0-L2 | Can be Block or Table. If Block, maps a **huge region**.                       |
+| At L3    | Must be a **Page** descriptor (final 4 KiB mapping).                           |
 
 #### Page Descriptor Layout (L3 entry, 8 bytes)
+
 ```
 [47:12]  Output address bits [47:12] of the physical page
 [11:10]  Reserved (must be 0)
@@ -58,6 +60,7 @@ Each table is **4096 bytes** with **512 entries** (each entry = 8 bytes).
 [10]     APTable (subsequent levels)
 [...]    See ARM manual for full bitfield
 ```
+
 - **AF = Access Flag:** Set to 1. If 0, the CPU raises a permission fault on first access.
 - **AP bits:** Control user/kernel and read/write access.
 - **XN bit:** Mark pages as non-executable (essential for security).
@@ -65,9 +68,11 @@ Each table is **4096 bytes** with **512 entries** (each entry = 8 bytes).
 ### 3. Memory Attributes (MAIR, TCR)
 
 #### MAIR_EL1 (Memory Attribute Indirection Register)
+
 - This register holds **8 attribute encodings** (indices 0–7).
 - Each index defines a memory type: Normal (cached), Device-nGnRnE, etc.
 - Example:
+
   ```
   // Attribute 0 = Normal Inner/Outer Write-Back Cacheable
   MAIR_ATTR0 = 0xFF   // Inner: Write-Back, Outer: Write-Back
@@ -77,9 +82,11 @@ Each table is **4096 bytes** with **512 entries** (each entry = 8 bytes).
 
   // MAIR_EL1 = (ATTR1 << 8) | ATTR0 = 0x00000000000000FF
   ```
+
 - The **AttrIndx** field (bits [4:2]) in each page table entry selects which MAIR attribute applies.
 
 #### TCR_EL1 (Translation Control Register)
+
 - Configures the address translation regime.
 - Key fields:
   - `T0SZ` (bits [5:0]): Size offset for TTBR0_EL1 region (e.g., `0x10` = 48-bit VA).
@@ -100,10 +107,10 @@ Each table is **4096 bytes** with **512 entries** (each entry = 8 bytes).
 
 ### 4. Identity Mapping vs Kernel Mapping
 
-| Approach | Description |
-|----------|-------------|
-| **Identity Mapping** | Virtual Address == Physical Address for everything. Simple. No need to rewrite pointers. But also no protection between kernel and user. |
-| **Higher Half Mapping** | Kernel lives at a high virtual address (e.g., `0xFFFF000000000000`), while user space is in the lower half. This is what Linux does. |
+| Approach                | Description                                                                                                                              |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| **Identity Mapping**    | Virtual Address == Physical Address for everything. Simple. No need to rewrite pointers. But also no protection between kernel and user. |
+| **Higher Half Mapping** | Kernel lives at a high virtual address (e.g., `0xFFFF000000000000`), while user space is in the lower half. This is what Linux does.     |
 
 For Phase 4, **start with identity mapping** to avoid relocation issues. You can later switch to higher-half mapping.
 
@@ -112,6 +119,7 @@ For Phase 4, **start with identity mapping** to avoid relocation issues. You can
 Once you set `SCTLR_EL1.M = 1`, the MMU is live. **Every memory access is now translated.**
 
 #### Pseudocode for MMU enable sequence
+
 ```
 // 1. Allocate page tables in identity-mapped memory
 //    (before the MMU is on, memory accesses use physical addresses)
@@ -152,6 +160,7 @@ isb
 ```
 
 #### After the MMU is on
+
 - Your stack pointer `SP` still holds a physical address. Is it identity-mapped? It better be, or your next push/pop will fault.
 - If you mapped code at VA=0x40000000 and PA=0x40000000, great — identity map works.
 - If you mapped code at VA=0xFFFF000000000000 but loaded at PA=0x40000000, then `pc` would need to be updated. That's "higher half mapping" and is more advanced.
@@ -161,11 +170,13 @@ isb
 ## Step-by-Step Implementation Path
 
 ### Step 1: Design your page table layout
+
 - Decide: Will you use identity mapping or higher-half?
 - For identity mapping: Allocate physical RAM for L0-L3 tables before the MMU turns on.
 - Use a linker script or hard-code a region past your kernel image.
 
 ### Step 2: Implement table manipulation helpers
+
 ```
 // Pseudocode
 void set_l0_entry(uint64_t *l0_table, uint64_t va, uint64_t l1_phys_addr):
@@ -184,22 +195,26 @@ void set_l3_page_entry(uint64_t *l3_table, uint64_t va, uint64_t pa, uint64_t at
 ```
 
 ### Step 3: Build the initial identity map
+
 - Map RAM region (`0x40000000` — `0x80000000`) as Normal Memory.
 - Map UART (`0x09000000`) as Device Memory (nGnRnE).
 - Map your kernel code as Read-Execute (no write).
 - Map your kernel data/bss/stack as Read-Write (no execute).
 
 ### Step 4: Configure MAIR, TCR, TTBR
+
 - Fill `MAIR_EL1` with Normal and Device attributes.
 - Fill `TCR_EL1` with correct T0SZ, granule, and cacheability settings.
 - Write `TTBR0_EL1` with your L0 table's physical address.
 
 ### Step 5: Enable the MMU
+
 - Do the `SCTLR_EL1` enable dance.
 - Add an `isb` after enabling.
 - Immediately after: print a character via UART. If it works, the MMU survived.
 
 ### Step 6: Implement page mapping functions
+
 ```
 // Map a single 4 KiB page
 void map_page(uint64_t virt, uint64_t phys, uint64_t flags);
@@ -225,13 +240,13 @@ uint64_t virt_to_phys(uint64_t virt);
 
 ## Recommended Resources
 
-| Resource | URL | Why Read It |
-|----------|-----|-------------|
-| **ARM Architecture Reference Manual (DDI 0487)** — Memory Management / Translation chapters | https://developer.arm.com/documentation/ddi0487/latest/ | **The** definitive reference for TCR, MAIR, translation table descriptor formats, and MMU behavior. |
-| **ARM Learn the Architecture — Memory Management** | https://developer.arm.com/documentation/102412/latest/ | Accessible, high-level coverage of AArch64 address translation, table walks, cacheability/shareability, and memory attribute indexing. |
-| **OSDev Wiki — ARM64 Page Table** | https://wiki.osdev.org/ARM64-PageTable | OSdev-focused practical guide to setting up ARM64 initial page tables, mapping regions, and enabling the MMU from bare-metal. |
-| **Linux Kernel Docs — ARM64 Memory Layout** | https://docs.kernel.org/arch/arm64/memory.html | Describes the kernel/user virtual address split, translation table levels as used by Linux, and how memory types are mapped. |
-| **Raspberry Pi OS Tutorial — Lesson 06 (MMU)** | https://github.com/s-matyukevich/raspberry-pi-os | Hands-on implementation of ARM64 MMU setup on real hardware. Shows actual descriptors and barrier usage. |
-| **Linux Kernel — `arch/arm64/mm/proc.S`** | https://git.kernel.org/.../arch/arm64/mm/proc.S | See how Linux writes MAIR_EL1, TCR_EL1, and TTBR0_EL1 before enabling the MMU in early boot. |
-| **Linux Kernel — `arch/arm64/mm/mmu.c`** | https://git.kernel.org/.../arch/arm64/mm/mmu.c | Kernel page table construction. Very dense but shows all descriptor attributes. |
-| **MMU Cacheability: ARM White Paper** | Search: "ARM memory attributes cacheability shareability" | Understand how Inner/Outer cacheability and shareability interact with multi-core systems. |
+| Resource                                                                                    | URL                                                       | Why Read It                                                                                                                            |
+| ------------------------------------------------------------------------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| **ARM Architecture Reference Manual (DDI 0487)** — Memory Management / Translation chapters | https://developer.arm.com/documentation/ddi0487/latest/   | **The** definitive reference for TCR, MAIR, translation table descriptor formats, and MMU behavior.                                    |
+| **ARM Learn the Architecture — Memory Management**                                          | https://developer.arm.com/documentation/102412/latest/    | Accessible, high-level coverage of AArch64 address translation, table walks, cacheability/shareability, and memory attribute indexing. |
+| **OSDev Wiki — ARM64 Page Table**                                                           | https://wiki.osdev.org/ARM64-PageTable                    | OSdev-focused practical guide to setting up ARM64 initial page tables, mapping regions, and enabling the MMU from bare-metal.          |
+| **Linux Kernel Docs — ARM64 Memory Layout**                                                 | https://docs.kernel.org/arch/arm64/memory.html            | Describes the kernel/user virtual address split, translation table levels as used by Linux, and how memory types are mapped.           |
+| **Raspberry Pi OS Tutorial — Lesson 06 (MMU)**                                              | https://github.com/s-matyukevich/raspberry-pi-os          | Hands-on implementation of ARM64 MMU setup on real hardware. Shows actual descriptors and barrier usage.                               |
+| **Linux Kernel — `arch/arm64/mm/proc.S`**                                                   | https://git.kernel.org/.../arch/arm64/mm/proc.S           | See how Linux writes MAIR_EL1, TCR_EL1, and TTBR0_EL1 before enabling the MMU in early boot.                                           |
+| **Linux Kernel — `arch/arm64/mm/mmu.c`**                                                    | https://git.kernel.org/.../arch/arm64/mm/mmu.c            | Kernel page table construction. Very dense but shows all descriptor attributes.                                                        |
+| **MMU Cacheability: ARM White Paper**                                                       | Search: "ARM memory attributes cacheability shareability" | Understand how Inner/Outer cacheability and shareability interact with multi-core systems.                                             |

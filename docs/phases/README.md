@@ -8,15 +8,15 @@ Each phase builds on the previous one. Read them in order. Do not skip ahead unt
 
 ## The Roadmap
 
-| Phase | Topic | What You'll Learn |
-|-------|-------|-------------------|
-| [Phase 1](phase-01-exception-vector-table) | Exception Vector Table | How ARM64 exceptions work, how to build the EVT, and how to catch CPU faults from C. |
-| [Phase 2](phase-02-gic-and-timers) | GIC & Timers | Hardware interrupts, the ARM Generic Timer, and how to give your OS a heartbeat. |
-| [Phase 3](phase-03-fdt-and-pfa) | Device Tree & Page Frame Allocator | Parse the Flattened Device Tree to discover RAM, then manage it as 4 KiB physical pages. |
-| [Phase 4](phase-04-mmu-and-paging) | MMU & Paging | The hardest phase. Build ARM64 translation tables, configure MAIR/TCR/TTBR, and turn on the MMU. |
-| [Phase 5](phase-05-kernel-heap) | Kernel Heap | A `kmalloc`/`kfree` allocator for variable-sized objects on top of the PFA. |
-| [Phase 6](phase-06-multitasking-and-scheduling) | Multitasking & Scheduling | Process Control Blocks, context switches, and a round-robin scheduler. |
-| [Phase 7](phase-07-user-space-and-system-calls) | User Space & System Calls | Drop to EL0, isolate user processes, and implement `SVC`-based system calls. |
+| Phase                                           | Topic                              | What You'll Learn                                                                                |
+| ----------------------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------ |
+| [Phase 1](phase-01-exception-vector-table)      | Exception Vector Table             | How ARM64 exceptions work, how to build the EVT, and how to catch CPU faults from C.             |
+| [Phase 2](phase-02-gic-and-timers)              | GIC & Timers                       | Hardware interrupts, the ARM Generic Timer, and how to give your OS a heartbeat.                 |
+| [Phase 3](phase-03-fdt-and-pfa)                 | Device Tree & Page Frame Allocator | Parse the Flattened Device Tree to discover RAM, then manage it as 4 KiB physical pages.         |
+| [Phase 4](phase-04-mmu-and-paging)              | MMU & Paging                       | The hardest phase. Build ARM64 translation tables, configure MAIR/TCR/TTBR, and turn on the MMU. |
+| [Phase 5](phase-05-kernel-heap)                 | Kernel Heap                        | A `kmalloc`/`kfree` allocator for variable-sized objects on top of the PFA.                      |
+| [Phase 6](phase-06-multitasking-and-scheduling) | Multitasking & Scheduling          | Process Control Blocks, context switches, and a round-robin scheduler.                           |
+| [Phase 7](phase-07-user-space-and-system-calls) | User Space & System Calls          | Drop to EL0, isolate user processes, and implement `SVC`-based system calls.                     |
 
 ---
 
@@ -32,15 +32,15 @@ Each phase builds on the previous one. Read them in order. Do not skip ahead unt
 
 ## General Resources (Not Phase-Specific)
 
-| Resource | URL | Why Read It |
-|----------|-----|-------------|
-| **OSDev Wiki — Main Page** | https://wiki.osdev.org/Main_Page | The go-to community wiki for hobby OS development. Read the "Getting Started" and "ARM" sections. |
-| **ARM Architecture Reference Manual for ARMv8-A (DDI 0487)** | https://developer.arm.com/documentation/ddi0487/latest/ | The ultimate reference for everything ARM64. Keep it open while coding. |
-| **ARM Cortex-A Series Programmer's Guide (DEN0024)** | https://developer.arm.com/documentation/den0024/latest/ | A gentler introduction to ARM64 architecture than the full Reference Manual. |
-| **QEMU `virt` Machine Documentation** | https://www.qemu.org/docs/master/system/arm/virt.html | Know your target platform: memory layout, devices, and boot behavior. |
-| **Raspberry Pi OS Tutorial (Sergey Matyukevich)** | https://github.com/s-matyukevich/raspberry-pi-os | Step-by-step bare-metal ARM64 OS tutorials. Not QEMU but very close. |
-| **xv6 (MIT)** | https://github.com/mit-pdos/xv6-riscv | A teaching OS for RISC-V. Excellent explanations of OS concepts. Translate assembly mentally. |
-| **Linux Kernel Source** | https://github.com/torvalds/linux/tree/master/arch/arm64 | The most mature ARM64 OS. Read `kernel/entry.S`, `kernel/process.c`, `mm/`, etc. |
+| Resource                                                     | URL                                                      | Why Read It                                                                                       |
+| ------------------------------------------------------------ | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| **OSDev Wiki — Main Page**                                   | https://wiki.osdev.org/Main_Page                         | The go-to community wiki for hobby OS development. Read the "Getting Started" and "ARM" sections. |
+| **ARM Architecture Reference Manual for ARMv8-A (DDI 0487)** | https://developer.arm.com/documentation/ddi0487/latest/  | The ultimate reference for everything ARM64. Keep it open while coding.                           |
+| **ARM Cortex-A Series Programmer's Guide (DEN0024)**         | https://developer.arm.com/documentation/den0024/latest/  | A gentler introduction to ARM64 architecture than the full Reference Manual.                      |
+| **QEMU `virt` Machine Documentation**                        | https://www.qemu.org/docs/master/system/arm/virt.html    | Know your target platform: memory layout, devices, and boot behavior.                             |
+| **Raspberry Pi OS Tutorial (Sergey Matyukevich)**            | https://github.com/s-matyukevich/raspberry-pi-os         | Step-by-step bare-metal ARM64 OS tutorials. Not QEMU but very close.                              |
+| **xv6 (MIT)**                                                | https://github.com/mit-pdos/xv6-riscv                    | A teaching OS for RISC-V. Excellent explanations of OS concepts. Translate assembly mentally.     |
+| **Linux Kernel Source**                                      | https://github.com/torvalds/linux/tree/master/arch/arm64 | The most mature ARM64 OS. Read `kernel/entry.S`, `kernel/process.c`, `mm/`, etc.                  |
 
 ---
 

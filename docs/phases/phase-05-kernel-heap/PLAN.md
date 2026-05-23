@@ -10,10 +10,10 @@ A **kernel heap allocator** that provides `kmalloc()` and `kfree()` for variable
 
 ### 1. The Kernel Heap vs The Page Frame Allocator
 
-| Layer | Granularity | API | Purpose |
-|-------|-------------|-----|---------|
-| **Page Frame Allocator (PFA)** | 4 KiB (fixed) | `pfa_alloc()`, `pfa_free()` | Physical memory at page level |
-| **Kernel Heap** | Variable (8, 16, 32, ... bytes) | `kmalloc(sz)`, `kfree(ptr)` | Dynamic data structures inside the kernel |
+| Layer                          | Granularity                     | API                         | Purpose                                   |
+| ------------------------------ | ------------------------------- | --------------------------- | ----------------------------------------- |
+| **Page Frame Allocator (PFA)** | 4 KiB (fixed)                   | `pfa_alloc()`, `pfa_free()` | Physical memory at page level             |
+| **Kernel Heap**                | Variable (8, 16, 32, ... bytes) | `kmalloc(sz)`, `kfree(ptr)` | Dynamic data structures inside the kernel |
 
 Your heap **sits on top of** the PFA. When the heap needs more memory, it calls `pfa_alloc()` to get a fresh page. When `kfree()` returns the last used chunk in a page, the heap may return the page to the PFA.
 
@@ -22,6 +22,7 @@ Your heap **sits on top of** the PFA. When the heap needs more memory, it calls 
 The simplest kernel heap approach is a **segregated freelist** with fixed-size bins.
 
 #### Pseudocode structure
+
 ```
 #define MIN_BLOCK_SIZE   16    // smallest allocation
 #define MAX_BLOCK_SIZE   2048  // largest allocation before going directly to PFA
@@ -43,6 +44,7 @@ size_t bin_index(size_t size):
 ```
 
 #### Allocation (`kmalloc`)
+
 ```
 void *kmalloc(size_t size):
     if size > MAX_BLOCK_SIZE:
@@ -72,6 +74,7 @@ void *kmalloc(size_t size):
 ```
 
 #### Free (`kfree`)
+
 ```
 void kfree(void *ptr, size_t size):
     if size > MAX_BLOCK_SIZE:
@@ -85,11 +88,12 @@ void kfree(void *ptr, size_t size):
     free_list[idx] = block
 ```
 
-**Note:** In a real OS, `kfree(ptr)` doesn't take a size. To do that, store metadata *before* the returned pointer (a short header).
+**Note:** In a real OS, `kfree(ptr)` doesn't take a size. To do that, store metadata _before_ the returned pointer (a short header).
 
 ### 3. Power-of-Two Sizing
 
 Using power-of-2 sizes (16, 32, 64, ...) has benefits:
+
 - **Alignment:** Every block is naturally aligned to its size.
 - **Determinism:** No fragmentation within a page (a 64-byte block always fits exactly 64 times in a page).
 - **Simplicity:** No need for a merge/coalesce pass.
@@ -124,6 +128,7 @@ void kfree(void *ptr):
 ### 5. Buddy Allocator (Alternative)
 
 Instead of fixed-size bins, you could use a **buddy system**:
+
 - All allocations are rounded up to the next power of 2.
 - A free block of size 2^k can be split into two "buddy" blocks of size 2^(k-1).
 - When a block is freed, check if its buddy is also free; if so, merge back to 2^k.
@@ -139,23 +144,28 @@ For a first kernel heap, **segregated freelists** are recommended.
 ## Step-by-Step Implementation Path
 
 ### Step 1: Decide on a memory region for the heap
+
 - Pre-allocate a chunk of pages for the heap at boot, or grow on-demand.
 - Example: Start with 8 pages (32 KiB) dedicated to the heap.
 
 ### Step 2: Implement the segregated freelist
+
 - Define your bins (16, 32, 64, 128, 256, 512, 1024, 2048).
 - Write `kmalloc()` and `kfree()` with header tracking.
 
 ### Step 3: Add safety checks
+
 - Magic number in header to detect use-after-free and double-free.
 - Poison freed memory with `0xDEAD` or `0xFEEEFEEE` in debug builds.
 
 ### Step 4: Implement page-return optimization
+
 - When `kfree()` returns the last block in a page, that page can go back to the PFA.
 - Track how many blocks in each page are currently allocated.
 - Add a per-page reference count.
 
 ### Step 5: Test with kernel data structures
+
 ```
 // Pseudocode
 struct node *head = NULL;
@@ -185,12 +195,12 @@ while head != NULL:
 
 ## Recommended Resources
 
-| Resource | URL | Why Read It |
-|----------|-----|-------------|
-| **Linux Kernel Docs — Memory Management** | https://docs.kernel.org/mm/index.html | Official coverage of the page allocator (buddy system), `vmalloc`, `kmalloc`, slab/SLUB/SLAB. |
-| **Linux Kernel Docs — Memory Allocation APIs** | https://docs.kernel.org/core-api/mm-api.html | Reference for `kmalloc`, `kfree`, `kzalloc`, `krealloc`, and kernel allocator API contracts and gfp flags. |
-| **LWN.net — The SLUB Allocator / Slab Internals** | https://lwn.net/Articles/229230/ (SLUB overview) https://lwn.net/Articles/250967/ (Slab design deep dive) | Classic kernel-internals articles explaining slab cache construction, object tracking, and fragmentation reduction. |
-| **Understanding the Linux Virtual Memory Manager (Mel Gorman)** | https://www.kernel.org/doc/gorman/html/understand/ | Full book freely available online. Covers buddy allocator mechanics, page tables, and kernel memory layout—concepts directly transferable to a custom kernel. |
-| **OSDev Wiki — Memory Allocation** | https://wiki.osdev.org/Memory_Allocation | General overview of kernel allocators: simple freelists, slab allocators, buddy systems, and kmalloc API design. |
-| **The Art of Computer Programming, Vol 1 — Knuth** | (Book) | Chapter on dynamic storage allocation. Covers buddy systems, boundary tags, and coalescing. A classic. |
-| **"Writing a Simple Kernel Heap" tutorials** | Search: "kernel heap allocator tutorial bare metal" | Blog posts showing simple freelist and slab implementations. Good for cross-checking your design. |
+| Resource                                                        | URL                                                                                                       | Why Read It                                                                                                                                                   |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Linux Kernel Docs — Memory Management**                       | https://docs.kernel.org/mm/index.html                                                                     | Official coverage of the page allocator (buddy system), `vmalloc`, `kmalloc`, slab/SLUB/SLAB.                                                                 |
+| **Linux Kernel Docs — Memory Allocation APIs**                  | https://docs.kernel.org/core-api/mm-api.html                                                              | Reference for `kmalloc`, `kfree`, `kzalloc`, `krealloc`, and kernel allocator API contracts and gfp flags.                                                    |
+| **LWN.net — The SLUB Allocator / Slab Internals**               | https://lwn.net/Articles/229230/ (SLUB overview) https://lwn.net/Articles/250967/ (Slab design deep dive) | Classic kernel-internals articles explaining slab cache construction, object tracking, and fragmentation reduction.                                           |
+| **Understanding the Linux Virtual Memory Manager (Mel Gorman)** | https://www.kernel.org/doc/gorman/html/understand/                                                        | Full book freely available online. Covers buddy allocator mechanics, page tables, and kernel memory layout—concepts directly transferable to a custom kernel. |
+| **OSDev Wiki — Memory Allocation**                              | https://wiki.osdev.org/Memory_Allocation                                                                  | General overview of kernel allocators: simple freelists, slab allocators, buddy systems, and kmalloc API design.                                              |
+| **The Art of Computer Programming, Vol 1 — Knuth**              | (Book)                                                                                                    | Chapter on dynamic storage allocation. Covers buddy systems, boundary tags, and coalescing. A classic.                                                        |
+| **"Writing a Simple Kernel Heap" tutorials**                    | Search: "kernel heap allocator tutorial bare metal"                                                       | Blog posts showing simple freelist and slab implementations. Good for cross-checking your design.                                                             |

@@ -10,20 +10,22 @@ The final barrier: dropping from the all-powerful **EL1 (Kernel Mode)** down to 
 
 ### 1. Privilege Levels (AArch64)
 
-| Level | Name | Access |
-|-------|------|--------|
-| EL3 | Secure Monitor | Can do everything. TrustZone firmware lives here. |
-| EL2 | Hypervisor | Virtualization. Not used in a simple OS. |
-| EL1 | Kernel / OS | Full access to MMU, timers, interrupts, physical memory. |
-| EL0 | User / Application | Cannot touch system registers or device MMIO. Must ask EL1 for help. |
+| Level | Name               | Access                                                               |
+| ----- | ------------------ | -------------------------------------------------------------------- |
+| EL3   | Secure Monitor     | Can do everything. TrustZone firmware lives here.                    |
+| EL2   | Hypervisor         | Virtualization. Not used in a simple OS.                             |
+| EL1   | Kernel / OS        | Full access to MMU, timers, interrupts, physical memory.             |
+| EL0   | User / Application | Cannot touch system registers or device MMIO. Must ask EL1 for help. |
 
 #### What EL0 CANNOT do
+
 - Read/write system registers (`MSR`, `MRS` instructions trap).
 - Access physical addresses directly (MMU is required; user space only sees VAs).
 - Change interrupt masks (`DAIF` bits).
 - Access the GIC or UART directly.
 
 #### What EL0 CAN do
+
 - Execute A64 instructions.
 - Access its own virtual memory.
 - Issue `SVC #imm` to trap to EL1 (a **system call**).
@@ -33,6 +35,7 @@ The final barrier: dropping from the all-powerful **EL1 (Kernel Mode)** down to 
 Your kernel starts in EL1. To create a user process, you must set up an EL0 execution context and then use `eret` to "return" to EL0.
 
 #### Setup before the drop
+
 ```
 // In the kernel, when creating a user process:
 // 1. Allocate a user page table
@@ -78,18 +81,21 @@ eret                     // CPU switches to EL0, loads PC from ELR_EL1
 ### 3. System Calls (SVC)
 
 When an EL0 process needs the kernel, it executes:
+
 ```
 SVC #0      // or any immediate value; the kernel decodes the "syscall number"
 ```
 
 #### What the hardware does on SVC
-1. `SPSR_EL1 = PSTATE`        (save current EL0 state)
-2. `ELR_EL1 = PC`             (save the address of the instruction AFTER `SVC`)
-3. PSTATE.M = EL1h            (switch to EL1)
-4. `SP = SP_EL1`              (switch to kernel stack)
+
+1. `SPSR_EL1 = PSTATE` (save current EL0 state)
+2. `ELR_EL1 = PC` (save the address of the instruction AFTER `SVC`)
+3. PSTATE.M = EL1h (switch to EL1)
+4. `SP = SP_EL1` (switch to kernel stack)
 5. `PC = VBAR_EL1 + Synchronous_Vector_offset` (jump to the SVC handler)
 
 #### In your SVC handler (Assembly stub)
+
 ```
 svc_handler:
     // We are at EL1 now.
@@ -107,6 +113,7 @@ svc_handler:
 ```
 
 #### In C: The Syscall Dispatcher
+
 ```
 #define SYS_PRINT    0
 #define SYS_EXIT     1
@@ -128,17 +135,19 @@ uint64_t handle_syscall(uint64_t nr, uint64_t a1, uint64_t a2, uint64_t a3, uint
 ```
 
 #### Syscall arguments (AArch64 ABI convention)
-| Register | Purpose in user→kernel syscall |
-|----------|-------------------------------|
-| **x8**   | Syscall number |
-| **x0-x5**| Arguments 0–5 |
-| **x0**   | Return value (set by kernel before ERET) |
+
+| Register  | Purpose in user→kernel syscall           |
+| --------- | ---------------------------------------- |
+| **x8**    | Syscall number                           |
+| **x0-x5** | Arguments 0–5                            |
+| **x0**    | Return value (set by kernel before ERET) |
 
 ### 4. System Call: `sys_print`
 
 A user program wants to print `"Hello, World!"` to the UART.
 
 #### User side (EL0 assembly)
+
 ```
     adr x0, msg          // pointer to string
     mov x1, #13          // length
@@ -148,6 +157,7 @@ A user program wants to print `"Hello, World!"` to the UART.
 ```
 
 #### Kernel side (EL1)
+
 ```
 uint64_t sys_print(uint64_t user_ptr, uint64_t len, ...):
     // SAFETY CHECK: is user_ptr a valid user-space virtual address?
@@ -171,6 +181,7 @@ uint64_t sys_print(uint64_t user_ptr, uint64_t len, ...):
 ### 5. Memory Isolation: Kernel vs User Pages
 
 In the page tables:
+
 - **Kernel pages** (e.g., kernel code, UART MMIO): `AP[2:1] = 0b00` (EL1 only, no user access).
 - **User pages** (e.g., user code, stack, heap): `AP[2:1] = 0b01` (User R/W, EL1 also R/W).
 - **User execute/no-execute:** Set `UXN = 1` for data pages, `UXN = 0` for code pages.
@@ -180,6 +191,7 @@ In the page tables:
 ### 6. Returning from a Syscall
 
 After the kernel syscall handler finishes, it must:
+
 1. Set `x0` to the return value.
 2. Restore all user registers from the saved frame.
 3. Execute `eret`.
@@ -191,25 +203,30 @@ The `eret` reloads `ELR_EL1` (which is the address of the instruction AFTER `SVC
 ## Step-by-Step Implementation Path
 
 ### Step 1: Build a user page table
+
 - Map user code and user stack into a separate translation table.
 - Ensure kernel pages are marked as EL1-only (`AP = 0b00`).
 - Ensure user pages are marked as EL0-accessible (`AP = 0b01`).
 
 ### Step 2: Write the drop-to-EL0 sequence
+
 - In `create_user_process()`, set up `SPSR_EL1`, `ELR_EL1`, `SP_EL0`, and `TTBR0_EL1`.
 - Use `eret` to "return" to EL0.
 
 ### Step 3: Handle an unprivileged exception
+
 - First test: try `svc #0` from EL0 after you drop.
 - Your SVT handler at EL1 should catch it.
 - Verify: `ESR_EL1.EC == 0b010101` (SVC from AArch64).
 
 ### Step 4: Implement the syscall dispatcher
+
 - Build the `syscall_table[]` array.
 - Implement `sys_print()` as a safe wrapper around UART.
 - Implement `sys_exit()` to mark the process as ZOMBIE.
 
 ### Step 5: Build a minimal user library
+
 - Write a small `libc` with `print()`, `exit()`, etc.
 - These functions are just thin wrappers that load x8 and execute `svc`.
 
@@ -227,14 +244,14 @@ The `eret` reloads `ELR_EL1` (which is the address of the instruction AFTER `SVC
 
 ## Recommended Resources
 
-| Resource | URL | Why Read It |
-|----------|-----|-------------|
-| **ARM Software Interfaces — Procedure Call Standard for AArch64 (AAPCS64)** | https://github.com/ARM-software/abi-aa/blob/main/aapcs64/aapcs64.rst | Defines the ARM64 calling convention: register roles (`x0–x7` for args/results, `x19–x29` callee-saved), stack alignment, and how data is passed across the EL0↔EL1 boundary. |
-| **ARM Developer — Exception Model / SVC & Exception Handling** | https://developer.arm.com/documentation/den0024 (AArch64 Exception Model) | Step-by-step coverage of privilege levels (EL0–EL3), the `SVC #imm` instruction, synchronous exception routing, the role of `VBAR_EL1`, and how the processor state is automatically saved to `SPSR_EL1` / `ELR_EL1` on exception entry. |
-| **Raspberry Pi OS Tutorial (Sergey Matyukevich) — Lesson 04+** | https://github.com/s-matyukevich/raspberry-pi-os | Bare-metal tutorial explicitly implementing the transition from EL1 to EL0, setting up a separate user stack, issuing SVC calls, and writing a minimal syscall handler. One of the best publicly available step-by-step implementations. |
-| **Linux Kernel — `arch/arm64/kernel/syscall.c` & `arch/arm64/kernel/entry.S`** | https://github.com/torvalds/linux/tree/master/arch/arm64/kernel | See how Linux sets up the syscall entry path, handles register clobbering, and dispatches to C from assembly. |
-| **LWN.net — "SYSCALL ABI and calling conventions" articles** | https://lwn.net/search/?q=syscall+ABI | Deep dives into kernel/user boundary mechanics and ABI stability. |
-| **xv6 RISC-V** | Not ARM, but a clear teaching OS | Search: "xv6 book riscv" | While not ARM64, xv6 is the canonical teaching OS with excellent explanations of system calls, trap frames, and user/kernel isolation. Swap RISC-V instructions for ARM64 equivalents in your head. |
-| **ARM Developer — Learn the Architecture: Exception Model & Security** | https://developer.arm.com/documentation/102412/latest/ | High-level ARM tutorial with diagrams explaining privilege transitions, secure vs non-secure, and system call flow. |
-| **OSDev Wiki — System Calls (general)** | https://wiki.osdev.org/System_Calls | Platform-agnostic explanation of how system calls work: the user/kernel boundary, syscall tables, and argument passing patterns. |
-| **"Spectre and Meltdown" primers** | Search: "Spectre Meltdown ARM64 explanation" | Important security context for why you must be careful about reading user-provided pointers in the kernel. |
+| Resource                                                                       | URL                                                                       | Why Read It                                                                                                                                                                                                                              |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **ARM Software Interfaces — Procedure Call Standard for AArch64 (AAPCS64)**    | https://github.com/ARM-software/abi-aa/blob/main/aapcs64/aapcs64.rst      | Defines the ARM64 calling convention: register roles (`x0–x7` for args/results, `x19–x29` callee-saved), stack alignment, and how data is passed across the EL0↔EL1 boundary.                                                            |
+| **ARM Developer — Exception Model / SVC & Exception Handling**                 | https://developer.arm.com/documentation/den0024 (AArch64 Exception Model) | Step-by-step coverage of privilege levels (EL0–EL3), the `SVC #imm` instruction, synchronous exception routing, the role of `VBAR_EL1`, and how the processor state is automatically saved to `SPSR_EL1` / `ELR_EL1` on exception entry. |
+| **Raspberry Pi OS Tutorial (Sergey Matyukevich) — Lesson 04+**                 | https://github.com/s-matyukevich/raspberry-pi-os                          | Bare-metal tutorial explicitly implementing the transition from EL1 to EL0, setting up a separate user stack, issuing SVC calls, and writing a minimal syscall handler. One of the best publicly available step-by-step implementations. |
+| **Linux Kernel — `arch/arm64/kernel/syscall.c` & `arch/arm64/kernel/entry.S`** | https://github.com/torvalds/linux/tree/master/arch/arm64/kernel           | See how Linux sets up the syscall entry path, handles register clobbering, and dispatches to C from assembly.                                                                                                                            |
+| **LWN.net — "SYSCALL ABI and calling conventions" articles**                   | https://lwn.net/search/?q=syscall+ABI                                     | Deep dives into kernel/user boundary mechanics and ABI stability.                                                                                                                                                                        |
+| **xv6 RISC-V**                                                                 | Not ARM, but a clear teaching OS                                          | Search: "xv6 book riscv"                                                                                                                                                                                                                 | While not ARM64, xv6 is the canonical teaching OS with excellent explanations of system calls, trap frames, and user/kernel isolation. Swap RISC-V instructions for ARM64 equivalents in your head. |
+| **ARM Developer — Learn the Architecture: Exception Model & Security**         | https://developer.arm.com/documentation/102412/latest/                    | High-level ARM tutorial with diagrams explaining privilege transitions, secure vs non-secure, and system call flow.                                                                                                                      |
+| **OSDev Wiki — System Calls (general)**                                        | https://wiki.osdev.org/System_Calls                                       | Platform-agnostic explanation of how system calls work: the user/kernel boundary, syscall tables, and argument passing patterns.                                                                                                         |
+| **"Spectre and Meltdown" primers**                                             | Search: "Spectre Meltdown ARM64 explanation"                              | Important security context for why you must be careful about reading user-provided pointers in the kernel.                                                                                                                               |
