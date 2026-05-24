@@ -1,9 +1,10 @@
 .extern kernel_main
+.extern vector_table
 .extern __bss_start   // Defined in your linker.ld
 .extern __bss_end     // Defined in your linker.ld
 
+.section ".text.boot"
 .global _start
-.section .text.boot
 
 _start:
     /* 1. Check CPU ID - Park secondary cores */
@@ -28,6 +29,10 @@ master:
     sub x2, x2, #8
     cbnz x2, 3b
 4:
+    /* Setup Vector Table */
+    ldr x1, =vector_table
+    msr vbar_el1, x1
+    isb
 
     /* 4. Set stack pointer */
     ldr x30, =0x41000000

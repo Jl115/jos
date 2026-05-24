@@ -1,6 +1,0 @@
---target=i386-pc-none-elf
--ffreestanding
--nostdlib
--fno-builtin
--Isrc
--Isrc/drivers
