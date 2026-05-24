@@ -149,10 +149,26 @@ vector_entry_sync_current_el_spx:
 ## Key Questions to Answer Before Moving On
 
 1. What is the difference between a Synchronous Abort and an SError?
+   - Synchronous abort is cpu based fault when for example the cpu trys to execute a instruction he cant
+   - SError is wen the system or or process decoupled from the cpu trys to execute something and it fails
+
 2. Why must each vector entry be exactly 128 bytes? What happens if your handler is longer?
+   - Its hardware bound and also when it would be longer it would overfolow and overwrite the first instruction trough
+     that, it aligns perfectly with standard L1 instruction cache
+
 3. If the CPU automatically saves the return address in `ELR_EL1`, why must you still save x0-x18 manually?
+   - The C compiler assumes it has the absolute right to overwrite those registers for its own operationsit it if its not manually saved and its also a standard of arm development
+
 4. What does the `DAIF` field in `SPSR_EL1` control, and why is it important?
-5. What happens if an exception occurs while you're already handling an exception? (Hint: think about stack overflow and nested exceptions.)
+   - DAIF stands for:
+   - D: Debug exceptions (Watchpoints, Breakpoints)
+   - A: SError (System Error, typically asynchronous external memory aborts)
+   - I: IRQ (Standard hardware interrupts)
+   - F: FIQ (Fast hardware interrupts)
+   - 5. What happens if an exception occurs while you're already handling an exception? (Hint: think about stack overflow and nested exceptions.)
+   - It is the exception mask. A bit set to 1 disables (masks) that exception. It is critical because the hardware automatically masks these bits upon taking an exception. This prevents a new interrupt from firing immediately and overwriting ELR_EL1 and SPSR_EL1 before your software has a chance to save them to the stack.
+
+   - The CPU reuses the same ELR_EL1 and SPSR_EL1 registers. The return state of the first exception is instantly overwritten and permanently destroyed. Unless your first handler explicitly saved its ELR_EL1/SPSR_EL1 to the stack and managed stack frames correctly, the system can never return to the original code and will fatally crash.
 
 ---
 
