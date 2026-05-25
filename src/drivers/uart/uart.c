@@ -1,6 +1,8 @@
-#include "./uart.h"
-#include "./uart_registry.h"
+#include "uart.h"
+#include "handlers.h"
+#include "uart_registry.h"
 #include <stdarg.h>
+#include <stdint.h>
 
 #define TX_FULL_FLAG (1 << 5)
 
@@ -31,8 +33,8 @@ void uart_print(const char *str) {
 }
 
 /* --- Number Formatting Helpers --- */
-static void print_unsigned(unsigned int value, int base) {
-    char buffer[32];
+void print_unsigned(uint64_t value, int base) {
+    char buffer[64];
     int  i = 0;
 
     if (value == 0) {
@@ -41,8 +43,8 @@ static void print_unsigned(unsigned int value, int base) {
     }
 
     while (value != 0) {
-        unsigned int rem = value % base;
-        buffer[i++]      = (char)((rem > 9) ? (rem - 10) + 'a' : rem + '0');
+        uint64_t rem = value % base;
+        buffer[i++]  = (char)((rem > 9) ? (rem - 10) + 'a' : rem + '0');
         value /= base;
     }
 
@@ -51,57 +53,43 @@ static void print_unsigned(unsigned int value, int base) {
     }
 }
 
-static void print_signed(int value) {
-    if (value < 0) {
-        uart_putc('-');
-        print_unsigned((unsigned int)(-value), 10);
-    } else {
-        print_unsigned((unsigned int)value, 10);
+void print_signed(int value) {
+    if (value >= 0) {
+        print_unsigned((uint64_t)value, 10);
+        return;
     }
+    uart_putc('-');
+    print_unsigned((uint64_t)(-value), 10);
+}
+
+/* YOU MUST CALL THIS IN kernel_main BEFORE PRINTING VARIABLES */
+void uart_printf_init(void) {
+    format_handlers['c'] = handle_c;
+    format_handlers['s'] = handle_s;
+    format_handlers['d'] = handle_d;
+    format_handlers['x'] = handle_x;
+    format_handlers['u'] = handle_u;
+    format_handlers['%'] = handle_pct;
 }
 
 /* --- Printf Implementation --- */
-static void handle_format(char specifier, va_list *args) {
-    switch (specifier) {
-    case 'c':
-        uart_putc((char)va_arg(*args, int));
-        break;
-    case 's': {
-        const char *s = va_arg(*args, const char *);
-        uart_print(s ? s : "(null)");
-        break;
-    }
-    case 'd':
-        print_signed(va_arg(*args, int));
-        break;
-    case 'x':
-        print_unsigned(va_arg(*args, unsigned int), 16);
-        break;
-    case '%':
-        uart_putc('%');
-        break;
-    default:
-        uart_putc('%');
-        uart_putc(specifier);
-        break;
-    }
-}
-
 void uart_printf(const char *format, ...) {
     va_list args;
     va_start(args, format);
 
     while (*format) {
-        if (*format == '%') {
-            format++;
-            if (*format == '\0') {
-                break;
-            }
-            handle_format(*format, &args);
-        } else {
-            uart_putc(*format);
+        if (*format != '%') {
+            uart_putc(*format++);
+            continue;
         }
-        format++;
+
+        format++; // Skip the '%'
+
+        if (*format == '\0') {
+            break;
+        }
+
+        handle_format(*format++, &args);
     }
 
     va_end(args);

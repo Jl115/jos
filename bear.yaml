@@ -1,0 +1,4 @@
+schema: "4.1"
+compilers:
+  - path: /opt/homebrew/bin/zig
+    as: clang
