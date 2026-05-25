@@ -198,28 +198,6 @@
     "output": "build/arch/aarch64/kernel/syscall_c.o"
   },
   {
-    "file": "src/arch/aarch64/kernel/trap.c",
-    "arguments": [
-      "/opt/homebrew/bin/zig",
-      "-target",
-      "aarch64-freestanding-none",
-      "-I./src",
-      "-I./src/arch/aarch64/include",
-      "-I./src/drivers",
-      "-Wall",
-      "-ffreestanding",
-      "-mgeneral-regs-only",
-      "-fno-sanitize=undefined",
-      "-MMD",
-      "-c",
-      "src/arch/aarch64/kernel/trap.c",
-      "-o",
-      "build/arch/aarch64/kernel/trap_c.o"
-    ],
-    "directory": "/Users/jldev115/Projects/2.pojects/jos",
-    "output": "build/arch/aarch64/kernel/trap_c.o"
-  },
-  {
     "file": "src/arch/aarch64/kernel/boot/setup.S",
     "arguments": [
       "/opt/homebrew/bin/zig",
