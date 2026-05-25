@@ -110,7 +110,7 @@
     "output": "build/drivers/uart/handlers_c.o"
   },
   {
-    "file": "src/kernel.c",
+    "file": "src/main.c",
     "arguments": [
       "/opt/homebrew/bin/zig",
       "-target",
@@ -124,12 +124,12 @@
       "-fno-sanitize=undefined",
       "-MMD",
       "-c",
-      "src/kernel.c",
+      "src/main.c",
       "-o",
-      "build/kernel_c.o"
+      "build/main_c.o"
     ],
     "directory": "/Users/jldev115/Projects/2.pojects/jos",
-    "output": "build/kernel_c.o"
+    "output": "build/main_c.o"
   },
   {
     "file": "src/arch/aarch64/kernel/irq.c",
