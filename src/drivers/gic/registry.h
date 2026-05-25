@@ -40,6 +40,12 @@ typedef struct {
     volatile uint32_t EOIR; // 0x010: End of Interrupt Register
 } giccT;
 
+#ifdef TEST_BUILD
+extern volatile gicdT mock_gicd;
+extern volatile giccT mock_gicc;
+#define GICD ((gicdT *)&mock_gicd)
+#define GICC ((giccT *)&mock_gicc)
+#else
 /* =======================================================================
  * Hardware Register Pointers
  * Use these macros to interact with the hardware in your driver files.
@@ -47,5 +53,6 @@ typedef struct {
 
 #define GICD ((gicdT *)GICD_BASE)
 #define GICC ((giccT *)GICC_BASE)
+#endif
 
 #endif // REGISTRY_H

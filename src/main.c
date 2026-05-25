@@ -169,7 +169,9 @@ static void initDriverStates(void) {
 }
 
 static void enableCpuIrq(void) {
+#ifndef TEST_BUILD
     __asm__ volatile("msr daifclr, #2");
+#endif
 }
 
 void exceptionDispatch(trap_frame_t *frame) {

@@ -6,7 +6,11 @@ void kernelPanic(trap_frame_t *frame, uint32_t ec) {
     uartPrintf("ESR_EL1: 0x%x (EC: 0x%x)\n", frame->esr, ec);
     uartPrintf("ELR_EL1: 0x%x\n", frame->elr);
     uartPrintf("System Halted.\n");
+
+    /* On bare metal this hangs with wfe; on host it returns for testing. */
+#ifndef TEST_BUILD
     while (1) {
-        __asm__ volatile("wfe"); // wfe is better than an empty loop to save power
-    };
+        __asm__ volatile("wfe");
+    }
+#endif
 }
