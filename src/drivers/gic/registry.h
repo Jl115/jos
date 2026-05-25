@@ -27,7 +27,7 @@ typedef struct {
     volatile uint32_t ISENABLER[32];   // 0x100 - 0x17C: Interrupt Set-Enable Registers
     volatile uint32_t _reserved1[416]; // 0x180 - 0x7FC: Reserved (1664 bytes)
     volatile uint8_t  ITARGETSR[1024]; // 0x800 - 0xBFC: Interrupt Processor Targets Registers
-} gicd_t;
+} gicdT;
 
 /* =======================================================================
  * GICv2 CPU Interface (GICC) Register Map
@@ -38,14 +38,14 @@ typedef struct {
     volatile uint32_t BPR;  // 0x008: Binary Point Register
     volatile uint32_t IAR;  // 0x00C: Interrupt Acknowledge Register
     volatile uint32_t EOIR; // 0x010: End of Interrupt Register
-} gicc_t;
+} giccT;
 
 /* =======================================================================
  * Hardware Register Pointers
  * Use these macros to interact with the hardware in your driver files.
  * ======================================================================= */
 
-#define GICD ((gicd_t *)GICD_BASE)
-#define GICC ((gicc_t *)GICC_BASE)
+#define GICD ((gicdT *)GICD_BASE)
+#define GICC ((giccT *)GICC_BASE)
 
 #endif // REGISTRY_H

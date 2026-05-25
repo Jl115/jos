@@ -4,15 +4,16 @@
 .global _start
 
 _start:
+    mov x20, x0
     /* ====================================================================
      * 1. PARK SECONDARY CORES
      * The Multiprocessor Affinity Register (mpidr_el1) holds the core ID.
      * We mask out all but the lowest 8 bits. If the result is 0 (Core 0),
      * we continue. If it is 1, 2, or 3, we trap them in an infinite loop.
      * ==================================================================== */
-    mrs x0, mpidr_el1
-    and x0, x0, #0xFF
-    cbz x0, master_core
+    mrs x1, mpidr_el1
+    and x1, x1, #0xFF
+    cbz x1, master_core
     b hang
 
 master_core:

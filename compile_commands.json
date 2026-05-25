@@ -110,7 +110,7 @@
     "output": "build/drivers/uart/handlers_c.o"
   },
   {
-    "file": "src/kernel.c",
+    "file": "src/main.c",
     "arguments": [
       "/opt/homebrew/bin/zig",
       "-target",
@@ -124,15 +124,15 @@
       "-fno-sanitize=undefined",
       "-MMD",
       "-c",
-      "src/kernel.c",
+      "src/main.c",
       "-o",
-      "build/kernel_c.o"
+      "build/main_c.o"
     ],
     "directory": "/Users/jldev115/Projects/2.pojects/jos",
-    "output": "build/kernel_c.o"
+    "output": "build/main_c.o"
   },
   {
-    "file": "src/arch/aarch64/kernel/irq.c",
+    "file": "src/arch/aarch64/kernel/trap/irq.c",
     "arguments": [
       "/opt/homebrew/bin/zig",
       "-target",
@@ -146,15 +146,15 @@
       "-fno-sanitize=undefined",
       "-MMD",
       "-c",
-      "src/arch/aarch64/kernel/irq.c",
+      "src/arch/aarch64/kernel/trap/irq.c",
       "-o",
-      "build/arch/aarch64/kernel/irq_c.o"
+      "build/arch/aarch64/kernel/trap/irq_c.o"
     ],
     "directory": "/Users/jldev115/Projects/2.pojects/jos",
-    "output": "build/arch/aarch64/kernel/irq_c.o"
+    "output": "build/arch/aarch64/kernel/trap/irq_c.o"
   },
   {
-    "file": "src/arch/aarch64/kernel/panic.c",
+    "file": "src/arch/aarch64/kernel/trap/panic.c",
     "arguments": [
       "/opt/homebrew/bin/zig",
       "-target",
@@ -168,15 +168,15 @@
       "-fno-sanitize=undefined",
       "-MMD",
       "-c",
-      "src/arch/aarch64/kernel/panic.c",
+      "src/arch/aarch64/kernel/trap/panic.c",
       "-o",
-      "build/arch/aarch64/kernel/panic_c.o"
+      "build/arch/aarch64/kernel/trap/panic_c.o"
     ],
     "directory": "/Users/jldev115/Projects/2.pojects/jos",
-    "output": "build/arch/aarch64/kernel/panic_c.o"
+    "output": "build/arch/aarch64/kernel/trap/panic_c.o"
   },
   {
-    "file": "src/arch/aarch64/kernel/syscall.c",
+    "file": "src/arch/aarch64/kernel/trap/syscall.c",
     "arguments": [
       "/opt/homebrew/bin/zig",
       "-target",
@@ -190,12 +190,12 @@
       "-fno-sanitize=undefined",
       "-MMD",
       "-c",
-      "src/arch/aarch64/kernel/syscall.c",
+      "src/arch/aarch64/kernel/trap/syscall.c",
       "-o",
-      "build/arch/aarch64/kernel/syscall_c.o"
+      "build/arch/aarch64/kernel/trap/syscall_c.o"
     ],
     "directory": "/Users/jldev115/Projects/2.pojects/jos",
-    "output": "build/arch/aarch64/kernel/syscall_c.o"
+    "output": "build/arch/aarch64/kernel/trap/syscall_c.o"
   },
   {
     "file": "src/arch/aarch64/kernel/boot/setup.S",

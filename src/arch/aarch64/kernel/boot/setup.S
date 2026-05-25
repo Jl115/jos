@@ -1,4 +1,4 @@
-.extern kernel_main
+.extern kernelMain
 .extern vector_table
 .extern __bss_start   // Provided by linker.ld
 .extern __bss_end     // Provided by linker.ld
@@ -44,11 +44,12 @@ skip_bss:
 
     /* ====================================================================
      * 6. BRANCH TO C KERNEL
-     * bl (branch with link) jumps to kernel_main and saves the return
+     * bl (branch with link) jumps to kernelMain and saves the return
      * address in x30. The kernel should never return, but if it does, 
      * it will fall through to the hang loop.
      * ==================================================================== */
-    bl kernel_main
+    mov x0, x20
+    bl kernelMain
 
     wfe
     b skip_bss                // Safety catch

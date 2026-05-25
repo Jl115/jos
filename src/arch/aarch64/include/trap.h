@@ -11,8 +11,8 @@ typedef struct {
     uint64_t esr;
 } trap_frame_t;
 
-void handle_synchronous_exception(trap_frame_t *frame);
-void handle_hardware_interrupt(uint32_t irq_id);
-void kernel_panic(trap_frame_t *frame, uint32_t ec);
+void handleSynchronousException(trap_frame_t *frame);
+void handleHardwareInterrupt(uint32_t irq_id);
+void kernelPanic(trap_frame_t *frame, uint32_t ec);
 
 #endif

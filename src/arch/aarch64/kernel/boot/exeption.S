@@ -1,4 +1,4 @@
-.extern exception_dispatch
+.extern exceptionDispatch
 
 .global sync_handler
 .global irq_handler
@@ -88,23 +88,23 @@
 sync_handler:
     kernel_entry
     mov x0, sp               // Pass stack pointer (trap frame) to C as arg1
-    bl exception_dispatch
+    bl exceptionDispatch
     kernel_exit
 
 irq_handler:
     kernel_entry
     mov x0, sp
-    bl exception_dispatch
+    bl exceptionDispatch
     kernel_exit
 
 fiq_handler:
     kernel_entry
     mov x0, sp
-    bl exception_dispatch
+    bl exceptionDispatch
     kernel_exit
 
 serror_handler:
     kernel_entry
     mov x0, sp
-    bl exception_dispatch
+    bl exceptionDispatch
     kernel_exit

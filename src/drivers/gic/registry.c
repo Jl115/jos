@@ -11,7 +11,7 @@ typedef struct {
     volatile uint32_t ISENABLER[32];   // 0x100 - 0x17C (32 * 4 = 128 bytes)
     volatile uint32_t _reserved1[416]; // 0x180 - 0x7FC (416 * 4 = 1664 bytes)
     volatile uint8_t  ITARGETSR[1024]; // 0x800 - 0xBFC (Byte-accessible array)
-} gicd_t;
+} gicdT;
 
 // GIC CPU Interface (GICC) Register Map
 typedef struct {
@@ -20,7 +20,7 @@ typedef struct {
     volatile uint32_t _reserved0; // 0x008 (Binary Point Register, unused here)
     volatile uint32_t IAR;        // 0x00C
     volatile uint32_t EOIR;       // 0x010
-} gicc_t;
+} giccT;
 
 // Cast the base addresses to the struct pointers
 #define GICD ((gicd_t *)GICD_BASE)

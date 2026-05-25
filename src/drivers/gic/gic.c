@@ -1,7 +1,7 @@
 #include "registry.h"
 #include <stdint.h>
 
-void init_gic(void) {
+void initGIC(void) {
     // Disable during setup
     GICD->CTLR = 0;
     GICC->CTLR = 0;
@@ -22,10 +22,10 @@ void init_gic(void) {
     GICC->CTLR = 1;
 }
 
-uint32_t gic_read_iar(void) {
+uint32_t gicReadIAR(void) {
     return GICC->IAR;
 }
 
-void gic_write_eoir(uint32_t irq) {
+void gicWriteEoir(uint32_t irq) {
     GICC->EOIR = irq;
 }
