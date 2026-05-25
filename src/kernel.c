@@ -1,3 +1,4 @@
+#include "drivers/timer/timer.h"
 #include "drivers/uart/uart.h"
 #include <stdint.h>
 
@@ -26,13 +27,6 @@ void exception_dispatch(trap_frame_t *frame) {
     uart_printf("System Halted.\n");
     while (1) {
     };
-}
-
-static uint64_t read_cntfrq(void) {
-    uint64_t freq;
-    __asm__ volatile("mrs %0, cntfrq_el0" : "=r"(freq));
-    uart_printf("\x1b[32mJOS Frequency is: %uHz\x1b[0m\n", freq);
-    return freq;
 }
 
 static void init_driver_states(void) {
