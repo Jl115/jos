@@ -2,8 +2,9 @@ TARGET    = aarch64-freestanding-none
 CC        = zig cc -target $(TARGET)
 OBJCOPY   = zig objcopy
 
-# Flags for compilation ONLY (warnings fixed)
-CFLAGS = -Wall -ffreestanding -Iinclude -mgeneral-regs-only -fno-sanitize=undefined
+INCLUDE_DIRS = -I./src -I./src/arch/aarch64/include -I./src/drivers
+
+CFLAGS = $(INCLUDE_DIRS) -Wall -ffreestanding -mgeneral-regs-only -fno-sanitize=undefined
 ASMOPS    = $(CFLAGS)
 
 # Flags for linking ONLY (linker error fixed)

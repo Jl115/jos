@@ -1,6 +1,6 @@
-#include "./uart.h"
-#include "./uart_registry.h"
+#include "uart.h"
 #include "handlers.h"
+#include "uart_registry.h"
 #include <stdarg.h>
 #include <stdint.h>
 
