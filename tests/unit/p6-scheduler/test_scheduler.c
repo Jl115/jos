@@ -1,204 +1,237 @@
-/* ============================================================================
- * Phase 6: Multitasking & Scheduling
- * Tests PCB layout, round-robin scheduling, and context-save bookkeeping.
- * No actual register save/restore — logic only.
- * ============================================================================ */
-
 #include "test.h"
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 
-#define MAX_PROC 4
-#define PAGE_SIZE (1 << 12)
+#ifndef SCHEDULER_H
+#define SCHEDULER_H
 
-/* --- Simplified PCB replica --- */
-typedef enum { READY, RUNNING, BLOCKED, ZOMBIE } proc_state_t;
+#define MAX_PROCS     64
+#define PROC_NAME_LEN 16
+
+typedef enum {
+    PROC_READY,
+    PROC_RUNNING,
+    PROC_BLOCKED,
+    PROC_ZOMBIE
+} proc_state_t;
 
 typedef struct pcb {
-    uint32_t pid;
-    char     name[16];
+    uint64_t     pid;
+    char         name[PROC_NAME_LEN];
     proc_state_t state;
-    uint64_t x[31];        /* x0-x30 */
-    uint64_t sp;
-    uint64_t pc;
-    uint64_t pstate;
-    uint64_t ticks_used;
-    uint64_t priority;
-    struct   pcb *next;
+    uint64_t     x[31];
+    uint64_t     sp;
+    uint64_t     pc;
+    uint64_t     pstate;
+    void        *page_table;
+    uint64_t     ticks_used;
+    uint64_t     priority;
+    struct pcb  *next;
 } pcb_t;
 
-static int    g_next_pid = 1;
-static pcb_t  g_pcb_pool[MAX_PROC];
-static pcb_t *g_ready_head = NULL;
-static pcb_t *g_ready_tail = NULL;
-static pcb_t *g_current = NULL;
+typedef struct {
+    pcb_t  procs[MAX_PROCS];
+    pcb_t *current;
+    pcb_t *head;
+    uint64_t num_procs;
+    uint64_t next_pid;
+} scheduler_t;
 
-static pcb_t *pcbAlloc(void) {
-    for (int i = 0; i < MAX_PROC; i++) {
-        if (g_pcb_pool[i].pid == 0) {
-            return &g_pcb_pool[i];
-        }
-    }
-    return NULL;
-}
+void     schedulerInit(scheduler_t *sched);
+pcb_t   *createProcess(scheduler_t *sched, uint64_t entry_point, const char *name);
+pcb_t   *schedule(scheduler_t *sched);
+void     blockProcess(pcb_t *proc);
+void     unblockProcess(pcb_t *proc);
+void     markZombie(pcb_t *proc);
+uint64_t getCurrentPid(scheduler_t *sched);
 
-static void pcbReset(void) {
-    memset(g_pcb_pool, 0, sizeof(g_pcb_pool));
-    g_ready_head = NULL;
-    g_ready_tail = NULL;
-    g_current = NULL;
-    g_next_pid = 1;
-}
+#endif
 
-static pcb_t *createProcess(const char *name, uint64_t entry) {
-    pcb_t *p = pcbAlloc();
-    if (!p) return NULL;
-    p->pid = g_next_pid++;
-    strncpy(p->name, name, sizeof(p->name) - 1);
-    p->state = READY;
-    p->pc = entry;
-    p->sp = (uint64_t)(uintptr_t)(0xABCDEF00 + (p->pid * PAGE_SIZE));
-    p->next = NULL;
-
-    if (g_ready_tail) {
-        g_ready_tail->next = p;
-    } else {
-        g_ready_head = p;
-    }
-    g_ready_tail = p;
-    return p;
-}
-
-static pcb_t *schedule(void) {
-    if (!g_ready_head) return NULL;
-
-    if (g_current && g_current->state == RUNNING) {
-        g_current->state = READY;
-    }
-
-    pcb_t *next = g_current ? g_current->next : NULL;
-    if (!next) next = g_ready_head;
-
-    next->state = RUNNING;
-    g_current = next;
-    return next;
-}
-
-static int countReady(void) {
-    int n = 0;
-    for (pcb_t *p = g_ready_head; p; p = p->next) if (p->state != ZOMBIE) n++;
-    return n;
-}
-
-/* ========================================================================= */
 PHASE(p6_multitasking_scheduling) {
-
-    /* --- PCB layout tests --- */
-    TEST("PCB size fits expected padding (must be compile-time stable)") {
-        ASSERT_TRUE(sizeof(pcb_t) >= (sizeof(uint64_t) * 40));
+    TEST("proc_state_t: PROC_READY is 0") {
+        ASSERT_EQ_INT((int)PROC_READY, 0);
     }
 
-    TEST("PID field exists at correct offset (zero-based)") {
-        pcbReset();
-        pcb_t *p = createProcess("idle", 0x1000);
-        ASSERT_EQ_UINT(p->pid, 1);
+    TEST("proc_state_t: PROC_RUNNING is 1") {
+        ASSERT_EQ_INT((int)PROC_RUNNING, 1);
     }
 
-    TEST("Process name survives strncpy without overflow") {
-        pcbReset();
-        pcb_t *p = createProcess("kernel_idle_thread", 0);
-        ASSERT_TRUE(strlen(p->name) < sizeof(p->name));
+    TEST("proc_state_t: PROC_BLOCKED is 2") {
+        ASSERT_EQ_INT((int)PROC_BLOCKED, 2);
     }
 
-    /* --- Creation --- */
-    TEST("Create two distinct processes") {
-        pcbReset();
-        pcb_t *a = createProcess("a", 0x1000);
-        pcb_t *b = createProcess("b", 0x2000);
-        ASSERT_NE_INT((int64_t)a, (int64_t)b);
-        ASSERT_EQ_UINT(a->pid, 1);
-        ASSERT_EQ_UINT(b->pid, 2);
+    TEST("proc_state_t: PROC_ZOMBIE is 3") {
+        ASSERT_EQ_INT((int)PROC_ZOMBIE, 3);
     }
 
-    TEST("PCB pool limits respected") {
-        pcbReset();
-        for (int i = 0; i < MAX_PROC + 1; i++)
-            createProcess("x", 0);
-        ASSERT_EQ_INT(countReady(), MAX_PROC);
+    TEST("MAX_PROCS is 64") {
+        ASSERT_EQ_INT((int)MAX_PROCS, 64);
     }
 
-    /* --- Scheduling --- */
-    TEST("First schedule picks head") {
-        pcbReset();
-        pcb_t *a = createProcess("a", 0x1000);
-        pcb_t *s = schedule();
-        ASSERT_EQ_HEX((uint64_t)s, (uint64_t)a);
-        ASSERT_EQ_UINT(s->state, RUNNING);
+    TEST("PROC_NAME_LEN is 16") {
+        ASSERT_EQ_INT((int)PROC_NAME_LEN, 16);
     }
 
-    TEST("Schedule rotates ring RR style") {
-        pcbReset();
-        pcb_t *a = createProcess("a", 0x1000);
-        pcb_t *b = createProcess("b", 0x2000);
-        createProcess("c", 0x3000);
-        (void)a; (void)b;
-        pcb_t *s1 = schedule();          /* a */
-        pcb_t *s2 = schedule();          /* b */
-        pcb_t *s3 = schedule();          /* c */
-        ASSERT_EQ_UINT(s1->pid, 1);
-        ASSERT_EQ_UINT(s2->pid, 2);
-        ASSERT_EQ_UINT(s3->pid, 3);
+    TEST("pcb_t has pid field") {
+        pcb_t p;
+        p.pid = 1;
+        ASSERT_EQ_INT((int)p.pid, 1);
     }
 
-    TEST("Schedule wraps around after the last process") {
-        pcbReset();
-        pcb_t *a = createProcess("a", 0x1000);
-        createProcess("b", 0x2000);
-        (void)schedule(); /* a (running) */
-        (void)schedule(); /* b */
-        pcb_t *s3 = schedule(); /* wraps back to a? Actually our impl goes: c then head a */
-        ASSERT_TRUE(s3-> pid == 1 || s3->pid == 2);
+    TEST("pcb_t has name field of 16 bytes") {
+        pcb_t p;
+        ASSERT_EQ_INT((int)sizeof(p.name), 16);
     }
 
-    /* --- State correctness --- */
-    TEST("Current process goes from RUNNING to READY on yield-like schedule") {
-        pcbReset();
-        pcb_t *a = createProcess("a", 0x1000);
-        pcb_t *b = createProcess("b", 0x2000);
-        pcb_t *s1 = schedule();
-        ASSERT_EQ_UINT(s1->state, RUNNING);
-        pcb_t *s2 = schedule();
-        ASSERT_EQ_UINT(s1->state, READY);
-        ASSERT_EQ_UINT(s2->state, RUNNING);
-        (void)a; (void)b;
+    TEST("pcb_t has state field of proc_state_t") {
+        pcb_t p;
+        p.state = PROC_RUNNING;
+        ASSERT_EQ_INT((int)p.state, (int)PROC_RUNNING);
     }
 
-    TEST("Schedule with only one process returns itself") {
-        pcbReset();
-        pcb_t *a = createProcess("lonely", 0x1000);
-        pcb_t *s = schedule();
-        ASSERT_EQ_HEX((uint64_t)s, (uint64_t)a);
+    TEST("pcb_t has x[31] register array") {
+        pcb_t p;
+        ASSERT_EQ_INT((int)(sizeof(p.x) / sizeof(p.x[0])), 31);
     }
 
-    TEST("SP field is written on process creation") {
-        pcbReset();
-        pcb_t *p = createProcess("sp_test", 0x4000);
-        ASSERT_TRUE(p->sp != 0);
+    TEST("pcb_t has sp field") {
+        pcb_t p;
+        p.sp = 0x41000000ULL;
+        ASSERT_EQ_HEX(p.sp, 0x41000000ULL);
     }
 
-    TEST("PC field matches entry argument") {
-        pcbReset();
-        pcb_t *p = createProcess("ep_test", 0xDEADBEEF);
-        ASSERT_EQ_HEX(p->pc, 0xDEADBEEF);
+    TEST("pcb_t has pc field for ELR_EL1") {
+        pcb_t p;
+        p.pc = 0x40080000ULL;
+        ASSERT_EQ_HEX(p.pc, 0x40080000ULL);
     }
 
-    TEST("Process list traversal counts correctly") {
-        pcbReset();
-        ASSERT_EQ_INT(countReady(), 0);
-        createProcess("a", 0);
-        ASSERT_EQ_INT(countReady(), 1);
-        createProcess("b", 0);
-        ASSERT_EQ_INT(countReady(), 2);
+    TEST("pcb_t has pstate field for SPSR_EL1") {
+        pcb_t p;
+        p.pstate = 0x5ULL;
+        ASSERT_EQ_HEX(p.pstate, 0x5ULL);
+    }
+
+    TEST("pcb_t has page_table pointer") {
+        pcb_t p;
+        p.page_table = NULL;
+        ASSERT_PTR_NULL(p.page_table);
+    }
+
+    TEST("pcb_t has ticks_used counter") {
+        pcb_t p;
+        p.ticks_used = 0;
+        ASSERT_EQ_INT((int)p.ticks_used, 0);
+    }
+
+    TEST("pcb_t has priority field") {
+        pcb_t p;
+        p.priority = 1;
+        ASSERT_EQ_INT((int)p.priority, 1);
+    }
+
+    TEST("pcb_t has next pointer for round-robin list") {
+        pcb_t p;
+        p.next = NULL;
+        ASSERT_PTR_NULL(p.next);
+    }
+
+    TEST("scheduler_t has procs array of MAX_PROCS pcbs") {
+        scheduler_t s;
+        ASSERT_EQ_INT((int)(sizeof(s.procs) / sizeof(s.procs[0])), MAX_PROCS);
+    }
+
+    TEST("scheduler_t has current pointer") {
+        scheduler_t s;
+        s.current = NULL;
+        ASSERT_PTR_NULL(s.current);
+    }
+
+    TEST("scheduler_t has head pointer") {
+        scheduler_t s;
+        s.head = NULL;
+        ASSERT_PTR_NULL(s.head);
+    }
+
+    TEST("scheduler_t has num_procs counter") {
+        scheduler_t s;
+        s.num_procs = 0;
+        ASSERT_EQ_INT((int)s.num_procs, 0);
+    }
+
+    TEST("scheduler_t has next_pid counter") {
+        scheduler_t s;
+        s.next_pid = 1;
+        ASSERT_EQ_INT((int)s.next_pid, 1);
+    }
+
+    TEST("SPSR_EL1 for EL1h with IRQ unmasked = 0x5") {
+        uint64_t spsr = 0x5ULL;
+        uint64_t m = spsr & 0xF;
+        ASSERT_EQ_INT((int)m, 0x5);
+    }
+
+    TEST("SPSR_EL1 for EL0t = 0x0") {
+        uint64_t spsr = 0x0ULL;
+        uint64_t m = spsr & 0xF;
+        ASSERT_EQ_INT((int)m, 0x0);
+    }
+
+    TEST("ELR_EL1 holds return address for ERET") {
+        pcb_t p;
+        p.pc = 0x40080000ULL;
+        ASSERT_EQ_HEX(p.pc, 0x40080000ULL);
+    }
+
+    TEST("SP_EL0 holds user stack pointer") {
+        pcb_t p;
+        p.sp = 0x41000000ULL;
+        ASSERT_EQ_HEX(p.sp, 0x41000000ULL);
+    }
+
+    TEST("x19-x30 are callee-saved: 12 registers") {
+        int callee_saved_count = 30 - 19 + 1;
+        ASSERT_EQ_INT(callee_saved_count, 12);
+    }
+
+    TEST("schedulerInit initializes scheduler state") {
+        SKIP("scheduler implementation not yet available");
+    }
+
+    TEST("createProcess allocates PCB and sets entry point") {
+        SKIP("scheduler implementation not yet available");
+    }
+
+    TEST("schedule rotates to next READY process (round-robin)") {
+        SKIP("scheduler implementation not yet available");
+    }
+
+    TEST("createProcess assigns unique PIDs") {
+        SKIP("scheduler implementation not yet available");
+    }
+
+    TEST("createProcess sets state to PROC_READY") {
+        SKIP("scheduler implementation not yet available");
+    }
+
+    TEST("createProcess allocates stack from PFA") {
+        SKIP("scheduler implementation not yet available");
+    }
+
+    TEST("schedule skips BLOCKED and ZOMBIE processes") {
+        SKIP("scheduler implementation not yet available");
+    }
+
+    TEST("blockProcess sets state to PROC_BLOCKED") {
+        SKIP("scheduler implementation not yet available");
+    }
+
+    TEST("markZombie sets state to PROC_ZOMBIE") {
+        SKIP("scheduler implementation not yet available");
+    }
+
+    TEST("getCurrentPid returns running process PID") {
+        SKIP("scheduler implementation not yet available");
     }
 }

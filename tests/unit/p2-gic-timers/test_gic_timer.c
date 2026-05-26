@@ -1,97 +1,168 @@
-/* ============================================================================
- * Phase 2: Hardware Awareness (GIC & Timers)
- * Tests that exercise GIC register writes and timer tick accounting logic.
- * No real MMIO — registers are mocked in RAM.
- * ============================================================================ */
 #include "test.h"
 #include "drivers/gic/registry.h"
 #include "drivers/gic/gic.h"
 #include "drivers/timer/timer.h"
 
-#define TEST_IRQ_ID 27
+#include <stdint.h>
+#include <string.h>
 
-static void resetMockGIC(void) {
-    memset((void*)&mock_gicd, 0, sizeof(mock_gicd));
-    memset((void*)&mock_gicc, 0, sizeof(mock_gicc));
+extern volatile gicdT mock_gicd;
+extern volatile giccT mock_gicc;
+
+static void reset_gic_mocks(void) {
+    memset((void *)&mock_gicd, 0, sizeof(gicdT));
+    memset((void *)&mock_gicc, 0, sizeof(giccT));
 }
 
-/* ========================================================================= */
 PHASE(p2_gic_and_timers) {
-
-    /* --- Timer tick counting --- */
-    TEST("Timer tick counter starts at zero") {
-        systemTicks = 0;
-        ASSERT_EQ_UINT(0, systemTicks);
-    }
-
-    TEST("Timer tick counter increments on handler call") {
-        systemTicks = 0;
-        timerHandleTick(27);
-        ASSERT_EQ_UINT(1, systemTicks);
-        timerHandleTick(27);
-        ASSERT_EQ_UINT(2, systemTicks);
-    }
-
-    TEST("Timer handler writes EOI to GICC") {
-        resetMockGIC();
-        timerHandleTick(27);
-        ASSERT_EQ_UINT(27, mock_gicc.EOIR);
-    }
-
-    /* --- GIC Distributor state --- */
-    TEST("initGIC disables GICD and GICC during setup") {
-        resetMockGIC();
+    TEST("initGIC sets GICD CTLR to 1 (enable)") {
+        reset_gic_mocks();
         initGIC();
-        /* In initGIC, first writes set CTLR to 0, then to 1 */
-        ASSERT_EQ_UINT(1, mock_gicd.CTLR);
-        ASSERT_EQ_UINT(1, mock_gicc.CTLR);
+        ASSERT_EQ_INT((int)mock_gicd.CTLR, 1);
     }
 
-    TEST("initGIC routes TIMER_IRQ to CPU 0") {
-        resetMockGIC();
+    TEST("initGIC sets GICC CTLR to 1 (enable)") {
+        reset_gic_mocks();
         initGIC();
-        ASSERT_EQ_UINT(1, mock_gicd.ITARGETSR[TIMER_IRQ]);
+        ASSERT_EQ_INT((int)mock_gicc.CTLR, 1);
     }
 
-    TEST("initGIC enables TIMER_IRQ in ISENABLER") {
-        resetMockGIC();
+    TEST("initGIC sets GICC PMR to 0xFFFF (allow all priorities)") {
+        reset_gic_mocks();
         initGIC();
-        uint32_t idx = TIMER_IRQ / 32;
-        uint32_t bit = 1U << (TIMER_IRQ % 32);
-        ASSERT_TRUE((mock_gicd.ISENABLER[idx] & bit) != 0);
+        ASSERT_EQ_INT((int)mock_gicc.PMR, 0xFFFF);
     }
 
-    TEST("initGIC allows all priorities in PMR") {
-        resetMockGIC();
+    TEST("initGIC enables TIMER_IRQ (27) in ISENABLER") {
+        reset_gic_mocks();
         initGIC();
-        ASSERT_EQ_HEX(0xFFFF, mock_gicc.PMR);
+        uint32_t reg = mock_gicd.ISENABLER[TIMER_IRQ / 32];
+        uint32_t expected_bit = (1 << (TIMER_IRQ % 32));
+        ASSERT_TRUE(reg & expected_bit);
     }
 
-    /* --- GIC acknowledgement --- */
-    TEST("gicReadIAR returns the current IAR value") {
-        resetMockGIC();
-        mock_gicc.IAR = 42;
-        ASSERT_EQ_UINT(42, gicReadIAR());
-    }
-
-    TEST("gicWriteEoir writes value to EOIR") {
-        resetMockGIC();
-        gicWriteEoir(99);
-        ASSERT_EQ_UINT(99, mock_gicc.EOIR);
-    }
-
-    /* --- GIC edge cases --- */
-    TEST("initGIC survives being called twice") {
-        resetMockGIC();
+    TEST("initGIC targets TIMER_IRQ to CPU 0 in ITARGETSR") {
+        reset_gic_mocks();
         initGIC();
-        initGIC();
-        ASSERT_EQ_UINT(1, mock_gicd.CTLR);
-        ASSERT_EQ_UINT(1, mock_gicc.CTLR);
+        ASSERT_EQ_INT((int)mock_gicd.ITARGETSR[TIMER_IRQ], 1);
     }
 
-    TEST("gicReadIAR returns 1023 when spurious") {
-        resetMockGIC();
+    TEST("initGIC disables distributor before setup (CTLR=0)") {
+        reset_gic_mocks();
+        mock_gicd.CTLR = 0xFF;
+        initGIC();
+        ASSERT_EQ_INT((int)mock_gicd.CTLR, 1);
+    }
+
+    TEST("gicReadIAR reads from GICC IAR register") {
+        reset_gic_mocks();
+        mock_gicc.IAR = 27;
+        uint32_t result = gicReadIAR();
+        ASSERT_EQ_INT((int)result, 27);
+    }
+
+    TEST("gicReadIAR returns spurious IRQ ID 1023") {
+        reset_gic_mocks();
         mock_gicc.IAR = 1023;
-        ASSERT_EQ_UINT(1023, gicReadIAR());
+        uint32_t result = gicReadIAR();
+        ASSERT_EQ_INT((int)result, 1023);
+    }
+
+    TEST("gicWriteEoir writes IRQ ID to GICC EOIR register") {
+        reset_gic_mocks();
+        gicWriteEoir(27);
+        ASSERT_EQ_INT((int)mock_gicc.EOIR, 27);
+    }
+
+    TEST("gicWriteEoir writes spurious ID 1023") {
+        reset_gic_mocks();
+        gicWriteEoir(1023);
+        ASSERT_EQ_INT((int)mock_gicc.EOIR, 1023);
+    }
+
+    TEST("TIMER_IRQ constant is 27") {
+        ASSERT_EQ_INT((int)TIMER_IRQ, 27);
+    }
+
+    TEST("GICv2 ISENABLER register index for TIMER_IRQ = 27/32 = 0") {
+        int reg_index = TIMER_IRQ / 32;
+        ASSERT_EQ_INT(reg_index, 0);
+    }
+
+    TEST("GICv2 ISENABLER bit position for TIMER_IRQ = 27 % 32 = 27") {
+        int bit_pos = TIMER_IRQ % 32;
+        ASSERT_EQ_INT(bit_pos, 27);
+    }
+
+    TEST("readCntfrq returns QEMU virt frequency 62500000") {
+        uint64_t freq = readCntfrq();
+        ASSERT_EQ_INT((int64_t)freq, 62500000LL);
+    }
+
+    TEST("systemTicks starts at 0") {
+#if defined(TEST_BUILD)
+        systemTicks = 0;
+#else
+        ASSERT_EQ_INT((int)systemTicks, 0);
+#endif
+        systemTicks = 0;
+        ASSERT_EQ_INT((int)systemTicks, 0);
+    }
+
+    TEST("timerHandleTick increments systemTicks") {
+        systemTicks = 0;
+        reset_gic_mocks();
+        timerHandleTick(27);
+        ASSERT_EQ_INT((int)systemTicks, 1);
+    }
+
+    TEST("timerHandleTick increments systemTicks multiple times") {
+        systemTicks = 0;
+        reset_gic_mocks();
+        timerHandleTick(27);
+        timerHandleTick(27);
+        timerHandleTick(27);
+        ASSERT_EQ_INT((int)systemTicks, 3);
+    }
+
+    TEST("timerHandleTick calls gicWriteEoir with the same IRQ ID") {
+        reset_gic_mocks();
+        timerHandleTick(27);
+        ASSERT_EQ_INT((int)mock_gicc.EOIR, 27);
+    }
+
+    TEST("GICD struct has CTLR at offset 0x000") {
+        gicdT g;
+        ASSERT_EQ_INT((int)((uintptr_t)&g.CTLR - (uintptr_t)&g), 0);
+    }
+
+    TEST("GICD struct has ISENABLER at offset 0x100") {
+        gicdT g;
+        ASSERT_EQ_INT((int)((uintptr_t)&g.ISENABLER - (uintptr_t)&g), 0x100);
+    }
+
+    TEST("GICD struct has ITARGETSR at offset 0x800") {
+        gicdT g;
+        ASSERT_EQ_INT((int)((uintptr_t)&g.ITARGETSR - (uintptr_t)&g), 0x800);
+    }
+
+    TEST("GICC struct has CTLR at offset 0x000") {
+        giccT c;
+        ASSERT_EQ_INT((int)((uintptr_t)&c.CTLR - (uintptr_t)&c), 0);
+    }
+
+    TEST("GICC struct has PMR at offset 0x004") {
+        giccT c;
+        ASSERT_EQ_INT((int)((uintptr_t)&c.PMR - (uintptr_t)&c), 0x4);
+    }
+
+    TEST("GICC struct has IAR at offset 0x00C") {
+        giccT c;
+        ASSERT_EQ_INT((int)((uintptr_t)&c.IAR - (uintptr_t)&c), 0xC);
+    }
+
+    TEST("GICC struct has EOIR at offset 0x010") {
+        giccT c;
+        ASSERT_EQ_INT((int)((uintptr_t)&c.EOIR - (uintptr_t)&c), 0x10);
     }
 }

@@ -14,5 +14,7 @@ typedef struct {
 void handleSynchronousException(trap_frame_t *frame);
 void handleHardwareInterrupt(uint32_t irq_id);
 void kernelPanic(trap_frame_t *frame, uint32_t ec);
+void exceptionDispatch(trap_frame_t *frame);
+void printHex32(uint32_t val);
 
 #endif

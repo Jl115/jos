@@ -8,6 +8,8 @@
 build/*
 !build/.gitkeep
 
+tests/build/
+
 # Object files
 *.o
 *.ko

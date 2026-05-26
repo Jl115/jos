@@ -14,6 +14,7 @@
 CC       ?= zig cc
 CFLAGS   := -Wall -Wextra -std=c99 -I./include \
             -I../src -I../src/arch/aarch64/include -I../src/drivers \
+            -I../src/mm -I../src/drivers/fdt \
             -DDEBUG -g -O0 -DTEST_BUILD
 
 # --- Kernel source files that compile cleanly on host (no inline AArch64 asm) ---
@@ -23,17 +24,23 @@ KERNEL_SRC := \
     ../src/drivers/timer/timer.c \
     ../src/arch/aarch64/kernel/trap/irq.c \
     ../src/arch/aarch64/kernel/trap/panic.c \
-    ../src/arch/aarch64/kernel/trap/syscall.c
+    ../src/arch/aarch64/kernel/trap/syscall.c \
+    ../src/arch/aarch64/kernel/trap/dispatch.c \
+    ../src/mm/pfa.c \
+    ../src/drivers/fdt/fdt.c
 
 # --- Host-safe test mocks ---
 MOCK_SRC := \
     mocks/mock_gic.c \
-    mocks/mock_uart.c
+    mocks/mock_uart.c \
+    mocks/mock_main.c
 
 # --- Unit test files (phase numbers match real phase plan) ---
 UNIT_SRC := \
     unit/p1-pfa/test_evt_dispatch.c \
     unit/p1-pfa/test_fdt_pfa.c \
+    unit/p3-fdt-pfa/test_pfa_integration.c \
+    unit/p1-pfa/test_trap_dispatch.c \
     unit/p2-gic-timers/test_gic_timer.c \
     unit/p4-mmu/test_mmu_bitfields.c \
     unit/p5-heap/test_heap.c \
